@@ -1,7 +1,6 @@
 #include "raylib.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <time.h>
 
 #define WIDTH 800
@@ -17,3 +16,22 @@ typedef struct {
     int y;
     double tempo;
 }Player;
+typedef struct {
+    int X;
+    int Y;
+    int hp;
+    int speed;
+}inimigo;
+typedef struct{
+    int X;
+    int Y;
+    int speed;
+    int hp;
+}boss;
+void MoveIni(Inimigo *inimigo){
+    inimigo->y+=inimigo->speed;
+    if(inimigo->y > HEIGHT){
+        inimigo->y=0;
+        inimigo->x = GetRandomValue(0,WIDTH- 30);
+    }
+}
