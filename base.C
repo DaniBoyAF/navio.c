@@ -69,7 +69,7 @@ int main() {
         inimigos[i].speed = 2;
         inimigos[i].hp = 3;
     }
-
+    
     Boss boss = { (Vector2){100, 100}, 1, MAX_HP_BOSS };
 
     while (!WindowShouldClose()) {
@@ -88,7 +88,13 @@ int main() {
             }
         }
         
-        mover_Boss(&boss, &player);
+           mover_Boss(&boss, &player);
+            if (ver_batida(&player, boss.pos, PLAYER_SIZE*2, PLAYER_SIZE*2)) {
+                player.hp--;
+                boss.pos = (Vector2){ rand() % WIDTH, rand() % HEIGHT };
+            }
+        
+        
 
         BeginDrawing();
         ClearBackground(RAYWHITE);
