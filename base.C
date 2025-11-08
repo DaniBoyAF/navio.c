@@ -21,7 +21,7 @@ typedef struct ListaScore {
 } ListaScore;
 
 ListaScore* criarNo(int pontuacao, int dinheiro, int tempo) {
-    ListaScore* novo = malloc(sizeof(ListaScore));
+    ListaScore* novo = (ListaScore*) malloc(sizeof(ListaScore));
     novo->pontuacao = pontuacao;
     novo->dinheiro = dinheiro;
     novo->tempo = tempo;
@@ -46,6 +46,7 @@ void add_ordenado_score(ListaScore** inicio, int pontuacao, int dinheiro, int te
     temp->proximo = novo;
 }
 
+// Mostra no terminal (opcional)
 void mostrarScores(ListaScore* inicio) {
     ListaScore* temp = inicio;
     printf("\n===== SCOREBOARD =====\n");
@@ -54,6 +55,28 @@ void mostrarScores(ListaScore* inicio) {
         temp = temp->proximo;
     }
     printf("======================\n");
+}
+
+// Mostra na tela Raylib
+void mostrarScoresTela(ListaScore* inicio) {
+    BeginDrawing();
+    ClearBackground(RAYWHITE);
+    DrawText("===== SCOREBOARD =====", 220, 40, 30, BLACK);
+    int y = 100;
+    ListaScore* temp = inicio;
+    int count = 0;
+    while (temp != NULL && count < 10) {
+        DrawText(TextFormat("%d) Pontos: %d | Dinheiro: %d | Tempo: %d",
+                            count + 1, temp->pontuacao, temp->dinheiro, temp->tempo),
+                 150, y, 20, DARKGRAY);
+        y += 30;
+        temp = temp->proximo;
+        count++;
+    }
+    DrawText("Pressione qualquer tecla para voltar", 200, HEIGHT - 60, 20, RED);
+    EndDrawing();
+    while (!WindowShouldClose() && !IsKeyPressed(KEY_ENTER) && !IsKeyPressed(KEY_SPACE) && !IsKeyPressed(KEY_ESCAPE))
+        ; // espera tecla
 }
 
 // ───────── STRUCTS 3D ─────────
@@ -87,7 +110,7 @@ typedef struct {
     int dano;
 } Bullet;
 
-// ───────── FUNÇÕES ─────────
+// ───────── FUNÇÕES AUXILIARES ─────────
 void mover_inimigo(Inimigo* ini, Player* player) {
     if (!ini->alive) return;
     float dx = player->pos.x - ini->pos.x;
@@ -113,15 +136,36 @@ bool ver_batida(Vector3 a, float tamA, Vector3 b, float tamB) {
     return (fabs(a.x - b.x) < (tamA + tamB)) && (fabs(a.z - b.z) < (tamA + tamB));
 }
 
-// ───────── MAIN ─────────
-int main(void) {
-    InitWindow(WIDTH, HEIGHT, "Navio 3D");
-    SetTargetFPS(60);
-    srand(time(NULL));
+// ───────── TELAS ─────────
+int menu(void) {
+    while (!WindowShouldClose()) {
+        BeginDrawing();
+        ClearBackground(RAYWHITE);
+        DrawText("NAVIO 3D", 320, 100, 40, BLUE);
+        DrawText("1 - Começar o jogo", 280, 200, 25, DARKGRAY);
+        DrawText("2 - Ver pontuações", 280, 240, 25, DARKGRAY);
+        DrawText("3 - Sair", 280, 280, 25, DARKGRAY);
+        EndDrawing();
 
-    ListaScore* scoreBoard = NULL;
+        if (IsKeyPressed(KEY_ONE)) return 1;
+        if (IsKeyPressed(KEY_TWO)) return 2;
+        if (IsKeyPressed(KEY_THREE) || IsKeyPressed(KEY_ESCAPE)) return 3;
+    }
+    return 3;
+}
 
-    // Câmera 3D
+void telaGameOver(void) {
+    BeginDrawing();
+    ClearBackground(BLACK);
+    DrawText("GAME OVER", 300, 180, 40, RED);
+    DrawText("Pressione qualquer tecla para voltar ao menu", 180, 250, 20, WHITE);
+    EndDrawing();
+    while (!WindowShouldClose() && !IsKeyPressed(KEY_ENTER) && !IsKeyPressed(KEY_SPACE) && !IsKeyPressed(KEY_ESCAPE))
+        ;
+}
+
+// ───────── JOGO ─────────
+int jogar(ListaScore **scoreBoard) {
     Camera3D camera = { 0 };
     camera.position = (Vector3){ 5.0f, 5.0f, 5.0f };
     camera.target = (Vector3){ 0.0f, 1.0f, 0.0f };
@@ -144,16 +188,15 @@ int main(void) {
     Bullet balas[MAX_BULLETS] = {0};
 
     int tempoJogo = 0;
+
     while (!WindowShouldClose() && player.hp > 0) {
         tempoJogo++;
 
-        // Movimento do player no plano XZ
         if (IsKeyDown(KEY_W)) player.pos.z -= 0.1f;
         if (IsKeyDown(KEY_S)) player.pos.z += 0.1f;
         if (IsKeyDown(KEY_A)) player.pos.x -= 0.1f;
         if (IsKeyDown(KEY_D)) player.pos.x += 0.1f;
 
-        // Troca de arma
         if (IsKeyPressed(KEY_ONE)) player.tipo_muni = 0;
         if (IsKeyPressed(KEY_TWO)) player.tipo_muni = 1;
         if (IsKeyPressed(KEY_THREE)) player.tipo_muni = 2;
@@ -161,7 +204,6 @@ int main(void) {
         int dano_arma[] = {25, 10, 50};
         int dano = dano_arma[player.tipo_muni];
 
-        // Movimento inimigos
         for (int i = 0; i < totalInimigos; i++) {
             mover_inimigo(&inimigos[i], &player);
             if (inimigos[i].alive && ver_batida(player.pos, PLAYER_SIZE, inimigos[i].pos, PLAYER_SIZE)) {
@@ -176,27 +218,24 @@ int main(void) {
             boss.pos = (Vector3){ rand()%20 - 10, 1.0f, rand()%20 - 10 };
         }
 
-        // Atirar
         if (IsKeyPressed(KEY_SPACE) && player.municao > 0) {
             player.municao--;
             for (int i = 0; i < MAX_BULLETS; i++) {
                 if (!balas[i].active) {
                     balas[i].active = true;
                     balas[i].pos = player.pos;
-                    balas[i].dir = (Vector3){ 0, 0, -1 }; // vai pra frente do player
+                    balas[i].dir = (Vector3){ 0, 0, -1 };
                     balas[i].dano = dano;
                     break;
                 }
             }
         }
 
-        // Atualiza tiros
         for (int i = 0; i < MAX_BULLETS; i++) {
             if (balas[i].active) {
                 balas[i].pos.x += balas[i].dir.x * BULLET_SPEED;
                 balas[i].pos.z += balas[i].dir.z * BULLET_SPEED;
 
-                // Saiu do mapa
                 if (fabs(balas[i].pos.x) > 25 || fabs(balas[i].pos.z) > 25)
                     balas[i].active = false;
 
@@ -243,10 +282,29 @@ int main(void) {
         EndDrawing();
     }
 
-    add_ordenado_score(&scoreBoard, player.score, player.municao_total, tempoJogo/60);
-    mostrarScores(scoreBoard);
+    add_ordenado_score(scoreBoard, player.score, player.municao_total, tempoJogo/60);
+    telaGameOver();
+    return 0;
+}
+
+// ───────── MAIN ─────────
+int main(void) {
+    InitWindow(WIDTH, HEIGHT, "Navio 3D");
+    SetTargetFPS(60);
+    srand(time(NULL));
+
+    ListaScore* scoreBoard = NULL;
+
+    while (!WindowShouldClose()) {
+        int opcao = menu();
+        if (opcao == 1)
+            jogar(&scoreBoard);
+        else if (opcao == 2)
+            mostrarScoresTela(scoreBoard);
+        else if (opcao == 3)
+            break;
+    }
 
     CloseWindow();
     return 0;
 }
-
