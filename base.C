@@ -191,16 +191,20 @@ int jogar(ListaScore **scoreBoard) {
 
     while (!WindowShouldClose() && player.hp > 0) {
         tempoJogo++;
-
-        if (IsKeyDown(KEY_W)) player.pos.z -= 0.1f;
-        if (IsKeyDown(KEY_S)) player.pos.z += 0.1f;
-        if (IsKeyDown(KEY_A)) player.pos.x -= 0.1f;
-        if (IsKeyDown(KEY_D)) player.pos.x += 0.1f;
+        float movespeed = 0.1f;
+        if (IsKeyDown(KEY_W)) player.pos.z -= movespeed;
+        if (IsKeyDown(KEY_S)) player.pos.z += movespeed;
+        if (IsKeyDown(KEY_A)) player.pos.x -= movespeed;
+        if (IsKeyDown(KEY_D)) player.pos.x += movespeed;
 
         if (IsKeyPressed(KEY_ONE)) player.tipo_muni = 0;
         if (IsKeyPressed(KEY_TWO)) player.tipo_muni = 1;
         if (IsKeyPressed(KEY_THREE)) player.tipo_muni = 2;
-
+        // ───────── CÂMERA SEGUE O JOGADOR ─────────
+        camera.position.x = player.pos.x ;
+        camera.position.y = player.pos.y + 5.0f;
+        camera.position.z = player.pos.z + 10.0f;
+        camera.target = player.pos;
         int dano_arma[] = {25, 10, 50};
         int dano = dano_arma[player.tipo_muni];
 
