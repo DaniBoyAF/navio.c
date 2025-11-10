@@ -175,6 +175,9 @@ int jogar(ListaScore **scoreBoard) {
 
     Player player = { (Vector3){0, 1, 0}, "Player", 0, MAX_HP, 10, 50, 0 };
 
+    Model mapa = LoadModel("models/mar1.glb");
+    
+          
     int totalInimigos = 5;
     Inimigo inimigos[5];
     for (int i = 0; i < totalInimigos; i++) {
@@ -196,7 +199,7 @@ int jogar(ListaScore **scoreBoard) {
         if (IsKeyDown(KEY_S)) player.pos.z += movespeed;
         if (IsKeyDown(KEY_A)) player.pos.x -= movespeed;
         if (IsKeyDown(KEY_D)) player.pos.x += movespeed;
-
+        
         if (IsKeyPressed(KEY_ONE)) player.tipo_muni = 0;
         if (IsKeyPressed(KEY_TWO)) player.tipo_muni = 1;
         if (IsKeyPressed(KEY_THREE)) player.tipo_muni = 2;
@@ -269,6 +272,7 @@ int jogar(ListaScore **scoreBoard) {
         ClearBackground(RAYWHITE);
 
         BeginMode3D(camera);
+        DrawModel(mapa, (Vector3){0.0f, 0.0f, 0.0f}, 1.0f, WHITE);
             DrawGrid(20, 1.0f);
             DrawCube(player.pos, PLAYER_SIZE, PLAYER_SIZE, PLAYER_SIZE, RED);
             DrawCube(boss.pos, 2.0f, 2.0f, 2.0f, PURPLE);
@@ -285,7 +289,7 @@ int jogar(ListaScore **scoreBoard) {
         DrawText(TextFormat("Munição: %d / %d", player.municao, player.municao_total), 10, 70, 20, ORANGE);
         EndDrawing();
     }
-
+    UnloadModel(mapa);
     add_ordenado_score(scoreBoard, player.score, player.municao_total, tempoJogo/60);
     telaGameOver();
     return 0;
