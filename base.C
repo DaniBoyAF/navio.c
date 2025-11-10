@@ -88,6 +88,7 @@ typedef struct {
     int municao;
     int municao_total;
     int tipo_muni;
+    Model modelo;
 } Player;
 
 typedef struct {
@@ -95,12 +96,14 @@ typedef struct {
     int hp;
     float speed;
     bool alive;
+    Model modelo;
 } Inimigo;
 
 typedef struct {
     Vector3 pos;
     int hp;
     float speed;
+    Model modelo;
 } Boss;
 
 typedef struct {
@@ -108,6 +111,7 @@ typedef struct {
     Vector3 dir;
     bool active;
     int dano;
+    
 } Bullet;
 
 // ───────── FUNÇÕES AUXILIARES ─────────
@@ -173,10 +177,12 @@ int jogar(ListaScore **scoreBoard) {
     camera.fovy = 45.0f;
     camera.projection = CAMERA_PERSPECTIVE;
 
-    Player player = { (Vector3){0, 1, 0}, "Player", 0, MAX_HP, 10, 50, 0 };
+    Player player = { (Vector3){0, 1, 0}, "Player", 0, MAX_HP, 10, 50, 0 ,modeloPlayer};
 
     Model mapa = LoadModel("models/mar1.glb");
-    
+    Model modeloPlayer = LoadModel("models/player.glb");
+    Model modeloInimigo = LoadModel("models/barco.glb");
+    Model modeloBoss = LoadModel("models/boss.glb");
           
     int totalInimigos = 5;
     Inimigo inimigos[5];
@@ -185,9 +191,10 @@ int jogar(ListaScore **scoreBoard) {
         inimigos[i].speed = 0.05f;
         inimigos[i].hp = 3;
         inimigos[i].alive = true;
+        inimigos[i].medelo = modeloInimigo;
     }
 
-    Boss boss = { (Vector3){10, 1, 10}, MAX_HP_BOSS, 0.03f };
+    Boss boss = { (Vector3){10, 1, 10}, MAX_HP_BOSS, 0.03f ,modeloBoss};
     Bullet balas[MAX_BULLETS] = {0};
 
     int tempoJogo = 0;
@@ -274,11 +281,11 @@ int jogar(ListaScore **scoreBoard) {
         BeginMode3D(camera);
         DrawModel(mapa, (Vector3){0.0f, 0.0f, 0.0f}, 1.0f, WHITE);
             DrawGrid(20, 1.0f);
-            DrawCube(player.pos, PLAYER_SIZE, PLAYER_SIZE, PLAYER_SIZE, RED);
-            DrawCube(boss.pos, 2.0f, 2.0f, 2.0f, PURPLE);
+            DrawModel(player.modelo, player.pos, 1.0f, WHITE);
+             DrawModel(boss.modelo, boss.pos, 2.0f, WHITE);
             for (int i = 0; i < totalInimigos; i++)
                 if (inimigos[i].alive)
-                    DrawCube(inimigos[i].pos, 1.0f, 1.0f, 1.0f, BLUE);
+                     DrawModel(inimigos[i].modelo, inimigos[i].pos, 1.0f, WHITE);
             for (int i = 0; i < MAX_BULLETS; i++)
                 if (balas[i].active)
                     DrawSphere(balas[i].pos, 0.2f, YELLOW);
@@ -289,7 +296,12 @@ int jogar(ListaScore **scoreBoard) {
         DrawText(TextFormat("Munição: %d / %d", player.municao, player.municao_total), 10, 70, 20, ORANGE);
         EndDrawing();
     }
+  
+     // ===== DESCARREGAR MODELOS =====
     UnloadModel(mapa);
+    UnloadModel(modeloPlayer);
+    UnloadModel(modeloInimigo);
+    UnloadModel(modeloBoss);
     add_ordenado_score(scoreBoard, player.score, player.municao_total, tempoJogo/60);
     telaGameOver();
     return 0;
