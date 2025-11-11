@@ -11,6 +11,7 @@
 #define MAX_HP_BOSS 500
 #define MAX_BULLETS 30
 #define BULLET_SPEED 0.5f
+#define ARQUIVO_SCORES "scores.txt"
 
 // ───────── LISTA DE SCORE ─────────
 typedef struct ListaScore {
@@ -45,6 +46,20 @@ void add_ordenado_score(ListaScore** inicio, int pontuacao, int dinheiro, int te
     novo->proximo = temp->proximo;
     temp->proximo = novo;
 }
+void salvarScores(ListaScore* inicio){
+    FILE* arquivo = fopen(ARQUIVO_SCORES,"w");
+    if (arquivo == NULL){
+    printf("erro ao abrir o arquivo de scores\n");
+    return;
+    }
+    ListaScore* temp = inicio;
+    while (temp != NULL){
+        fprintf(arquivo, "%d %d %d\n", temp->pontuacao, temp->dinheiro, temp->tempo);
+        temp = temp->proximo;
+    }
+    fclose(arquivo);    
+    printf("Salvo com sucesso!\n");
+}
 
 // Mostra no terminal (opcional)
 void mostrarScores(ListaScore* inicio) {
@@ -56,7 +71,26 @@ void mostrarScores(ListaScore* inicio) {
     }
     printf("======================\n");
 }
-
+void carregarScores(ListaScore** inicio) {
+    FILE* arquivo = fopen(ARQUIVO_SCORES, "r");
+    if (arquivo == NULL) {
+        printf("Nenhum arquivo de scores encontrado. Iniciando novo scoreboard.\n");
+        return;
+    }
+    int pontuacao, dinheiro, tempo;
+    while (fscanf(arquivo, "%d %d %d", &pontuacao, &dinheiro, &tempo) != EOF) {
+        add_ordenado_score(inicio, pontuacao, dinheiro, tempo);
+    }
+    fclose(arquivo);
+}
+void liberarScores(ListaScore** inicio){
+    ListaScore* temp;
+    while (*inicio != NULL){
+        temp = *inicio;
+        *inicio = (*inicio)->proximo;
+        free(temp);
+    }
+}
 // Mostra na tela Raylib
 void mostrarScoresTela(ListaScore* inicio) {
     BeginDrawing();
@@ -137,7 +171,10 @@ void mover_Boss(Boss* boss, Player* player) {
 }
 
 bool ver_batida(Vector3 a, float tamA, Vector3 b, float tamB) {
-    return (fabs(a.x - b.x) < (tamA + tamB)) && (fabs(a.z - b.z) < (tamA + tamB));
+    float dx = a.x - b.x;
+    float dz = a.z - b.z;
+    float distancia = sqrtf(dx * dx + dz * dz);
+    return distancia < (tamA + tamB);
 }
 
 // ───────── TELAS ─────────
@@ -177,13 +214,13 @@ int jogar(ListaScore **scoreBoard) {
     camera.fovy = 45.0f;
     camera.projection = CAMERA_PERSPECTIVE;
 
-    Player player = { (Vector3){0, 1, 0}, "Player", 0, MAX_HP, 10, 50, 0 ,modeloPlayer};
+  
 
     Model mapa = LoadModel("models/mar1.glb");
     Model modeloPlayer = LoadModel("models/player.glb");
     Model modeloInimigo = LoadModel("models/barco.glb");
     Model modeloBoss = LoadModel("models/boss.glb");
-          
+    Player player = { (Vector3){0, 1, 0}, "Player", 0, MAX_HP, 10, 50, 0 ,modeloPlayer};
     int totalInimigos = 5;
     Inimigo inimigos[5];
     for (int i = 0; i < totalInimigos; i++) {
@@ -191,7 +228,7 @@ int jogar(ListaScore **scoreBoard) {
         inimigos[i].speed = 0.05f;
         inimigos[i].hp = 3;
         inimigos[i].alive = true;
-        inimigos[i].medelo = modeloInimigo;
+        inimigos[i].modelo = modeloInimigo;
     }
 
     Boss boss = { (Vector3){10, 1, 10}, MAX_HP_BOSS, 0.03f ,modeloBoss};
@@ -303,6 +340,8 @@ int jogar(ListaScore **scoreBoard) {
     UnloadModel(modeloInimigo);
     UnloadModel(modeloBoss);
     add_ordenado_score(scoreBoard, player.score, player.municao_total, tempoJogo/60);
+    mostrarScores(*scoreBoard);
+    salvarScores(*scoreBoard);
     telaGameOver();
     return 0;
 }
@@ -314,7 +353,7 @@ int main(void) {
     srand(time(NULL));
 
     ListaScore* scoreBoard = NULL;
-
+    carregarScores(&scoreBoard);
     while (!WindowShouldClose()) {
         int opcao = menu();
         if (opcao == 1)
@@ -324,7 +363,8 @@ int main(void) {
         else if (opcao == 3)
             break;
     }
-
+    salvarScores(scoreBoard);
+    liberarScores(&scoreBoard);
     CloseWindow();
     return 0;
 }
