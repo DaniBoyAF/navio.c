@@ -5,7 +5,7 @@ LDFLAGS =
 TARGET = jogo
 
 # Source files (adjust if multiple .c files exist)
-SRC = base.c
+SRC = main.c
 
 # Detect OS
 UNAME_S := $(shell uname -s)

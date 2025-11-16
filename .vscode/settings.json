@@ -1,5 +1,3 @@
 {
-    "files.associations": {
-        "base.C": "cpp"
-    }
+    "C_Cpp.errorSquiggles": "enabled"
 }
