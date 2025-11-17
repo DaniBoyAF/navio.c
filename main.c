@@ -1,6 +1,7 @@
 #include "raylib.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <math.h>
 
@@ -12,6 +13,19 @@
 #define MAX_BULLETS 30
 #define BULLET_SPEED 0.5f
 #define ARQUIVO_SCORES "scores.txt"
+
+// ───────── ENUMS ─────────
+typedef enum {
+    CAM_TERCEIRA_PESSOA = 0,
+    CAM_PRIMEIRA_PESSOA,
+    CAM_ISOMETRICA
+} ModoCameraJogo;
+
+typedef enum {
+    MUNI_NORMAL = 0,    // 10 dano, rápida
+    MUNI_PESADA,        // 25 dano, média
+    MUNI_EXPLOSIVA      // 50 dano, lenta
+} TipoMunicao;
 
 // ───────── LISTA DE SCORE ─────────
 typedef struct ListaScore {
@@ -93,24 +107,27 @@ void liberarScores(ListaScore** inicio){
 }
 // Mostra na tela Raylib
 void mostrarScoresTela(ListaScore* inicio) {
-    BeginDrawing();
-    ClearBackground(RAYWHITE);
-    DrawText("===== SCOREBOARD =====", 220, 40, 30, BLACK);
-    int y = 100;
-    ListaScore* temp = inicio;
-    int count = 0;
-    while (temp != NULL && count < 10) {
-        DrawText(TextFormat("%d) Pontos: %d | Dinheiro: %d | Tempo: %d",
-                            count + 1, temp->pontuacao, temp->dinheiro, temp->tempo),
-                 150, y, 20, DARKGRAY);
-        y += 30;
-        temp = temp->proximo;
-        count++;
+    while (!WindowShouldClose()) {
+        BeginDrawing();
+        ClearBackground(RAYWHITE);
+        DrawText("===== SCOREBOARD =====", 220, 40, 30, BLACK);
+        int y = 100;
+        ListaScore* temp = inicio;
+        int count = 0;
+        while (temp != NULL && count < 10) {
+            DrawText(TextFormat("%d) Pontos: %d | Dinheiro: %d | Tempo: %d",
+                                count + 1, temp->pontuacao, temp->dinheiro, temp->tempo),
+                     150, y, 20, DARKGRAY);
+            y += 30;
+            temp = temp->proximo;
+            count++;
+        }
+        DrawText("Pressione ENTER ou ESPACO para voltar", 200, HEIGHT - 60, 20, RED);
+        EndDrawing();
+        
+        if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE))
+            break;
     }
-    DrawText("Pressione qualquer tecla para voltar", 200, HEIGHT - 60, 20, RED);
-    EndDrawing();
-    while (!WindowShouldClose() && !IsKeyPressed(KEY_ENTER) && !IsKeyPressed(KEY_SPACE) && !IsKeyPressed(KEY_ESCAPE))
-        ; // espera tecla
 }
 
 // ───────── STRUCTS 3D ─────────
@@ -119,8 +136,7 @@ typedef struct {
     char nome[50];
     int score;
     int hp;
-    int municao;
-    int municao_total;
+    int municao[3];      // municao por tipo [normal, pesada, explosiva]
     int tipo_muni;
     Model modelo;
 } Player;
@@ -196,13 +212,16 @@ int menu(void) {
 }
 
 void telaGameOver(void) {
-    BeginDrawing();
-    ClearBackground(BLACK);
-    DrawText("GAME OVER", 300, 180, 40, RED);
-    DrawText("Pressione qualquer tecla para voltar ao menu", 180, 250, 20, WHITE);
-    EndDrawing();
-    while (!WindowShouldClose() && !IsKeyPressed(KEY_ENTER) && !IsKeyPressed(KEY_SPACE) && !IsKeyPressed(KEY_ESCAPE))
-        ;
+    while (!WindowShouldClose()) {
+        BeginDrawing();
+        ClearBackground(BLACK);
+        DrawText("GAME OVER", 300, 180, 40, RED);
+        DrawText("Pressione ENTER ou ESPACO para voltar ao menu", 140, 250, 20, WHITE);
+        EndDrawing();
+        
+        if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE))
+            break;
+    }
 }
 
 // ───────── JOGO ─────────
@@ -214,27 +233,42 @@ int jogar(ListaScore **scoreBoard) {
     camera.fovy = 45.0f;
     camera.projection = CAMERA_PERSPECTIVE;
 
-  
+    ModoCameraJogo modoCam = CAM_TERCEIRA_PESSOA;
 
     Model mapa = LoadModel("models/mar1.glb");
     Model modeloPlayer = LoadModel("models/player.glb");
     Model modeloInimigo = LoadModel("models/barco.glb");
     Model modeloBoss = LoadModel("models/boss.glb");
-    Player player = { (Vector3){0, 1, 0}, "Player", 0, MAX_HP, 10, 50, 0 ,modeloPlayer};
+    
+    Player player = {0};
+    player.pos = (Vector3){0, 1, 0};
+    strcpy(player.nome, "Player");
+    player.score = 0;
+    player.hp = MAX_HP;
+    player.municao[MUNI_NORMAL] = 50;
+    player.municao[MUNI_PESADA] = 20;
+    player.municao[MUNI_EXPLOSIVA] = 5;
+    player.tipo_muni = MUNI_NORMAL;
+    player.modelo = modeloPlayer;
+
     int totalInimigos = 5;
     Inimigo inimigos[5];
     for (int i = 0; i < totalInimigos; i++) {
-        inimigos[i].pos = (Vector3){ rand()%20 - 10, 1.0f, rand()%20 - 10 };
+        inimigos[i].pos = (Vector3){ rand()%100 - 50, 1.0f, rand()%100 - 50 };
         inimigos[i].speed = 0.05f;
         inimigos[i].hp = 3;
         inimigos[i].alive = true;
         inimigos[i].modelo = modeloInimigo;
     }
 
-    Boss boss = { (Vector3){10, 1, 10}, MAX_HP_BOSS, 0.03f ,modeloBoss};
+    Boss boss = { (Vector3){10, 1, 10}, MAX_HP_BOSS, 0.03f, modeloBoss};
     Bullet balas[MAX_BULLETS] = {0};
 
     int tempoJogo = 0;
+
+    Shader shaderAgua = LoadShader(NULL, "shaders/agua.fs");
+    float tempo = 0.0f;
+    int locTempo = GetShaderLocation(shaderAgua, "tempo");
 
     while (!WindowShouldClose() && player.hp > 0) {
         tempoJogo++;
@@ -244,33 +278,55 @@ int jogar(ListaScore **scoreBoard) {
         if (IsKeyDown(KEY_A)) player.pos.x -= movespeed;
         if (IsKeyDown(KEY_D)) player.pos.x += movespeed;
         
-        if (IsKeyPressed(KEY_ONE)) player.tipo_muni = 0;
-        if (IsKeyPressed(KEY_TWO)) player.tipo_muni = 1;
-        if (IsKeyPressed(KEY_THREE)) player.tipo_muni = 2;
-        // ───────── CÂMERA SEGUE O JOGADOR ─────────
-        camera.position.x = player.pos.x ;
-        camera.position.y = player.pos.y + 5.0f;
-        camera.position.z = player.pos.z + 10.0f;
-        camera.target = player.pos;
-        int dano_arma[] = {25, 10, 50};
+        // Trocar munição (1, 2, 3)
+        if (IsKeyPressed(KEY_ONE)) player.tipo_muni = MUNI_NORMAL;
+        if (IsKeyPressed(KEY_TWO)) player.tipo_muni = MUNI_PESADA;
+        if (IsKeyPressed(KEY_THREE)) player.tipo_muni = MUNI_EXPLOSIVA;
+        
+        // Trocar modo de câmera (C)
+        if (IsKeyPressed(KEY_C)) {
+            modoCam = (modoCam + 1) % 3;
+        }
+
+        // ───────── CÂMERA DINÂMICA ─────────
+        switch (modoCam) {
+            case CAM_TERCEIRA_PESSOA:
+                camera.position.x = player.pos.x;
+                camera.position.y = player.pos.y + 8.0f;
+                camera.position.z = player.pos.z + 15.0f;
+                camera.target = player.pos;
+                break;
+            case CAM_PRIMEIRA_PESSOA:
+                camera.position = (Vector3){player.pos.x, player.pos.y + 2.0f, player.pos.z};
+                camera.target = (Vector3){player.pos.x, player.pos.y + 2.0f, player.pos.z - 5.0f};
+                break;
+            case CAM_ISOMETRICA:
+                camera.position.x = player.pos.x + 20.0f;
+                camera.position.y = player.pos.y + 20.0f;
+                camera.position.z = player.pos.z + 20.0f;
+                camera.target = player.pos;
+                break;
+        }
+
+        int dano_arma[] = {10, 25, 50};
         int dano = dano_arma[player.tipo_muni];
 
         for (int i = 0; i < totalInimigos; i++) {
             mover_inimigo(&inimigos[i], &player);
             if (inimigos[i].alive && ver_batida(player.pos, PLAYER_SIZE, inimigos[i].pos, PLAYER_SIZE)) {
                 player.hp--;
-                inimigos[i].pos = (Vector3){ rand()%20 - 10, 1.0f, rand()%20 - 10 };
+                inimigos[i].pos = (Vector3){ rand()%100 - 50, 1.0f, rand()%100 - 50 };
             }
         }
 
         mover_Boss(&boss, &player);
         if (ver_batida(player.pos, PLAYER_SIZE, boss.pos, 2.0f)) {
             player.hp -= 3;
-            boss.pos = (Vector3){ rand()%20 - 10, 1.0f, rand()%20 - 10 };
+            boss.pos = (Vector3){ rand()%100 - 50, 1.0f, rand()%100 - 50 };
         }
 
-        if (IsKeyPressed(KEY_SPACE) && player.municao > 0) {
-            player.municao--;
+        if (IsKeyPressed(KEY_SPACE) && player.municao[player.tipo_muni] > 0) {
+            player.municao[player.tipo_muni]--;
             for (int i = 0; i < MAX_BULLETS; i++) {
                 if (!balas[i].active) {
                     balas[i].active = true;
@@ -287,7 +343,7 @@ int jogar(ListaScore **scoreBoard) {
                 balas[i].pos.x += balas[i].dir.x * BULLET_SPEED;
                 balas[i].pos.z += balas[i].dir.z * BULLET_SPEED;
 
-                if (fabs(balas[i].pos.x) > 25 || fabs(balas[i].pos.z) > 25)
+                if (fabs(balas[i].pos.x) > 100 || fabs(balas[i].pos.z) > 100)
                     balas[i].active = false;
 
                 for (int j = 0; j < totalInimigos; j++) {
@@ -312,35 +368,72 @@ int jogar(ListaScore **scoreBoard) {
             }
         }
 
+        tempo += GetFrameTime();
+        SetShaderValue(shaderAgua, locTempo, &tempo, SHADER_UNIFORM_FLOAT);
+
         BeginDrawing();
-        ClearBackground(RAYWHITE);
+        ClearBackground(SKYBLUE);
 
         BeginMode3D(camera);
-        DrawModel(mapa, (Vector3){0.0f, 0.0f, 0.0f}, 1.0f, WHITE);
-            DrawGrid(20, 1.0f);
+        BeginShaderMode(shaderAgua);
+            for (int i = 0; i < 3; i++) {
+                float offset = sin(tempo * 0.5f + i) * 0.2f;
+                DrawPlane((Vector3){0, -0.5f + offset, 0}, (Vector2){200, 200},
+                          (i == 0) ? BLUE : (Color){0, 100, 200, 100});
+            }
+        EndShaderMode();
+        
             DrawModel(player.modelo, player.pos, 1.0f, WHITE);
-             DrawModel(boss.modelo, boss.pos, 2.0f, WHITE);
+            DrawModel(boss.modelo, boss.pos, 2.0f, WHITE);
+            
             for (int i = 0; i < totalInimigos; i++)
                 if (inimigos[i].alive)
-                     DrawModel(inimigos[i].modelo, inimigos[i].pos, 1.0f, WHITE);
+                    DrawModel(inimigos[i].modelo, inimigos[i].pos, 1.0f, WHITE);
+            
             for (int i = 0; i < MAX_BULLETS; i++)
-                if (balas[i].active)
-                    DrawSphere(balas[i].pos, 0.2f, YELLOW);
+                if (balas[i].active) {
+                    Color corBala = (player.tipo_muni == MUNI_NORMAL) ? YELLOW : 
+                                   (player.tipo_muni == MUNI_PESADA) ? ORANGE : RED;
+                    DrawSphere(balas[i].pos, 0.2f, corBala);
+                }
         EndMode3D();
 
+        // ───────── HUD ─────────
         DrawText(TextFormat("HP: %d", player.hp), 10, 10, 20, BLACK);
         DrawText(TextFormat("Score: %d", player.score), 10, 40, 20, DARKGRAY);
-        DrawText(TextFormat("Munição: %d / %d", player.municao, player.municao_total), 10, 70, 20, ORANGE);
+        
+        // Munição colorida por tipo
+        Color cores[] = {YELLOW, ORANGE, RED};
+        const char* nomes[] = {"Normal", "Pesada", "Explosiva"};
+        for (int i = 0; i < 3; i++) {
+            Color cor = (i == player.tipo_muni) ? cores[i] : GRAY;
+            DrawText(TextFormat("%d: %s x%d", i+1, nomes[i], player.municao[i]), 
+                     10, 70 + i*25, 18, cor);
+        }
+        
+        // Barra de vida do Boss (só se HP > 0)
+        if (boss.hp > 0) {
+            DrawRectangle(WIDTH/2 - 150, 10, 300, 20, DARKGRAY);
+            float percentHP = (float)boss.hp / MAX_HP_BOSS;
+            DrawRectangle(WIDTH/2 - 150, 10, (int)(300 * percentHP), 20, RED);
+            DrawText(TextFormat("BOSS: %d / %d", boss.hp, MAX_HP_BOSS), WIDTH/2 - 70, 12, 16, WHITE);
+        }
+        
+        // Modo de câmera
+        const char* camModes[] = {"3ª Pessoa", "1ª Pessoa", "Isométrica"};
+        DrawText(TextFormat("Câmera (C): %s", camModes[modoCam]), 10, HEIGHT - 30, 16, DARKBLUE);
+        
         EndDrawing();
     }
   
-     // ===== DESCARREGAR MODELOS =====
+    UnloadShader(shaderAgua);
     UnloadModel(mapa);
     UnloadModel(modeloPlayer);
     UnloadModel(modeloInimigo);
     UnloadModel(modeloBoss);
-    add_ordenado_score(scoreBoard, player.score, player.municao_total, tempoJogo/60);
-    mostrarScores(*scoreBoard);
+    
+    int totalMuni = player.municao[0] + player.municao[1] + player.municao[2];
+    add_ordenado_score(scoreBoard, player.score, totalMuni, tempoJogo/60);
     salvarScores(*scoreBoard);
     telaGameOver();
     return 0;
@@ -349,6 +442,7 @@ int jogar(ListaScore **scoreBoard) {
 // ───────── MAIN ─────────
 int main(void) {
     InitWindow(WIDTH, HEIGHT, "Navio 3D");
+    SetExitKey(KEY_NULL);  // desabilita ESC fechar a janela automaticamente
     SetTargetFPS(60);
     srand(time(NULL));
 
