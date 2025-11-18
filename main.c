@@ -13,6 +13,14 @@
 #define MAX_BULLETS 30
 #define BULLET_SPEED 0.5f
 #define ARQUIVO_SCORES "scores.txt"
+#define MAX_NUVENS 8
+#define MAX_ESPUMAS 50
+
+
+// Prototipo para evitar declaração implícita da função TransformedBBox
+Nuvem nuvens[MAX_NUVENS];
+Espuma espumas[MAX_ESPUMAS];
+static BoundingBox TransformedBBox(BoundingBox box, Vector3 pos, float scale);
 
 // ───────── ENUMS ─────────
 typedef enum {
@@ -164,6 +172,19 @@ typedef struct {
     
 } Bullet;
 
+typedef struct {
+    Vector3 pos;
+    float velocidade;
+} Nuvem;
+
+
+typedef struct {
+    Vector3 pos;
+    float vida;
+    float tamanho;
+} Espuma;
+
+
 // ───────── FUNÇÕES AUXILIARES ─────────
 void mover_inimigo(Inimigo* ini, Player* player) {
     if (!ini->alive) return;
@@ -191,6 +212,61 @@ bool ver_batida(Vector3 a, float tamA, Vector3 b, float tamB) {
     float dz = a.z - b.z;
     float distancia = sqrtf(dx * dx + dz * dz);
     return distancia < (tamA + tamB);
+}
+
+void criarNuvens(void) {
+    for (int i = 0; i < MAX_NUVENS; i++) {
+        nuvens[i].pos = (Vector3){ GetRandomValue(-80, 80), 15.0f + GetRandomValue(0, 5), GetRandomValue(-80, 80) };
+        nuvens[i].velocidade = 0.02f + GetRandomValue(0, 5) * 0.005f;
+    }
+}
+
+void atualizarNuvens(float dt) {
+    for (int i = 0; i < MAX_NUVENS; i++) {
+        nuvens[i].pos.x += nuvens[i].velocidade;
+        if (nuvens[i].pos.x > 90) nuvens[i].pos.x = -90;
+    }
+}
+
+void desenharNuvens(Camera3D camera, Texture2D tex) {
+    for (int i = 0; i < MAX_NUVENS; i++) {
+        DrawBillboard(camera, tex, nuvens[i].pos, 6.0f, WHITE);
+    }
+}
+
+void desenharNuvensSimples() {
+    for (int i = 0; i < MAX_NUVENS; i++) {
+        DrawSphere(nuvens[i].pos, 3.0f, Fade(WHITE, 0.8f));
+    }
+}
+
+void criarEspuma(Vector3 pos) {
+    for (int i = 0; i < MAX_ESPUMAS; i++) {
+        if (espumas[i].vida <= 0) {
+            espumas[i].pos = pos;
+            espumas[i].vida = 2.0f;  // duração em segundos
+            espumas[i].tamanho = 0.5f + GetRandomValue(0, 10) * 0.1f;
+            break;
+        }
+    }
+}
+
+void atualizarEspumas(float dt) {
+    for (int i = 0; i < MAX_ESPUMAS; i++) {
+        if (espumas[i].vida > 0) {
+            espumas[i].vida -= dt;
+            espumas[i].tamanho *= 0.98f;  // encolhe lentamente
+        }
+    }
+}
+
+void desenharEspumas() {
+    for (int i = 0; i < MAX_ESPUMAS; i++) {
+        if (espumas[i].vida > 0) {
+            float alpha = espumas[i].vida / 2.0f;
+            DrawSphere(espumas[i].pos, espumas[i].tamanho, Fade(WHITE, alpha));
+        }
+    }
 }
 
 // ───────── TELAS ─────────
@@ -270,7 +346,12 @@ int jogar(ListaScore **scoreBoard) {
     float tempo = 0.0f;
     int locTempo = GetShaderLocation(shaderAgua, "tempo");
 
-    while (!WindowShouldClose() && player.hp > 0) {
+    criarNuvens();
+
+    // Inicializar espumas
+    for (int i = 0; i < MAX_ESPUMAS; i++) espumas[i].vida = 0;
+
+    while (!WindowShouldClose() && player.hp > 0 && boss.hp > 0) {
         tempoJogo++;
         float movespeed = 0.1f;
         if (IsKeyDown(KEY_W)) player.pos.z -= movespeed;
@@ -279,10 +360,9 @@ int jogar(ListaScore **scoreBoard) {
         if (IsKeyDown(KEY_D)) player.pos.x += movespeed;
         
         // Trocar munição (1, 2, 3)
-        if (IsKeyPressed(KEY_ONE)) player.tipo_muni = MUNI_NORMAL;
-        if (IsKeyPressed(KEY_TWO)) player.tipo_muni = MUNI_PESADA;
+        if (IsKeyPressed(KEY_ONE))   player.tipo_muni = MUNI_NORMAL;
+        if (IsKeyPressed(KEY_TWO))   player.tipo_muni = MUNI_PESADA;
         if (IsKeyPressed(KEY_THREE)) player.tipo_muni = MUNI_EXPLOSIVA;
-        
         // Trocar modo de câmera (C)
         if (IsKeyPressed(KEY_C)) {
             modoCam = (modoCam + 1) % 3;
@@ -311,19 +391,23 @@ int jogar(ListaScore **scoreBoard) {
         int dano_arma[] = {10, 25, 50};
         int dano = dano_arma[player.tipo_muni];
 
-        for (int i = 0; i < totalInimigos; i++) {
-            mover_inimigo(&inimigos[i], &player);
-            if (inimigos[i].alive && ver_batida(player.pos, PLAYER_SIZE, inimigos[i].pos, PLAYER_SIZE)) {
-                player.hp--;
-                inimigos[i].pos = (Vector3){ rand()%100 - 50, 1.0f, rand()%100 - 50 };
-            }
-        }
+    // antes de checar inimigos:
+    BoundingBox bbPlayer = TransformedBBox(GetModelBoundingBox(player.modelo), player.pos, 1.0f);
 
-        mover_Boss(&boss, &player);
-        if (ver_batida(player.pos, PLAYER_SIZE, boss.pos, 2.0f)) {
-            player.hp -= 3;
-            boss.pos = (Vector3){ rand()%100 - 50, 1.0f, rand()%100 - 50 };
+    for (int i = 0; i < totalInimigos; i++) {
+        BoundingBox bbInimigo = TransformedBBox(GetModelBoundingBox(inimigos[i].modelo), inimigos[i].pos, 1.0f);
+        mover_inimigo(&inimigos[i], &player);
+        if (inimigos[i].alive && CheckCollisionBoxes(bbPlayer, bbInimigo)) {
+            player.hp--;
+            inimigos[i].pos = (Vector3){ rand()%100 - 50, 1.0f, rand()%100 - 50 };
         }
+    }
+    // colisão com boss
+    BoundingBox bbBoss = TransformedBBox(GetModelBoundingBox(boss.modelo), boss.pos, 2.0f); // se desenha com escala 2.0f
+    if (CheckCollisionBoxes(bbPlayer, bbBoss)) {
+        player.hp -= 3;
+        boss.pos = (Vector3){ rand()%100 - 50, 1.0f, rand()%100 - 50 };
+    }
 
         if (IsKeyPressed(KEY_SPACE) && player.municao[player.tipo_muni] > 0) {
             player.municao[player.tipo_muni]--;
@@ -347,26 +431,37 @@ int jogar(ListaScore **scoreBoard) {
                     balas[i].active = false;
 
                 for (int j = 0; j < totalInimigos; j++) {
-                    if (inimigos[j].alive && ver_batida(balas[i].pos, 0.5f, inimigos[j].pos, PLAYER_SIZE)) {
-                        inimigos[j].hp -= balas[i].dano;
-                        balas[i].active = false;
-                        if (inimigos[j].hp <= 0) {
-                            inimigos[j].alive = false;
-                            player.score += 10;
+                    if (inimigos[j].alive) {
+                        BoundingBox bbInimigo = TransformedBBox(GetModelBoundingBox(inimigos[j].modelo), inimigos[j].pos, 1.0f);
+                        if (CheckCollisionBoxSphere(bbInimigo, balas[i].pos, 0.5f)) {
+                            inimigos[j].hp -= balas[i].dano;
+                            balas[i].active = false;
+                            if (inimigos[j].hp <= 0) { inimigos[j].alive = false; player.score += 10; }
                         }
                     }
                 }
 
-                if (ver_batida(balas[i].pos, 0.5f, boss.pos, 2.0f)) {
+                // bala x boss
+                if (CheckCollisionBoxSphere(bbBoss, balas[i].pos, 0.5f)) {
                     boss.hp -= balas[i].dano;
                     balas[i].active = false;
-                    if (boss.hp <= 0) {
-                        boss.hp = 0;
-                        player.score += 100;
-                    }
+                    if (boss.hp <= 0) { boss.hp = 0; player.score += 100; break; }
                 }
             }
         }
+
+        // Criar espumas atrás do jogador se movendo
+        if (IsKeyDown(KEY_W) || IsKeyDown(KEY_S) || IsKeyDown(KEY_A) || IsKeyDown(KEY_D)) {
+            if (GetRandomValue(0, 10) < 3) {  // chance de criar espuma
+                Vector3 posEspuma = (Vector3){player.pos.x + GetRandomValue(-5, 5) * 0.1f, 
+                                              -0.4f, 
+                                              player.pos.z + 1.0f};
+                criarEspuma(posEspuma);
+            }
+        }
+
+        atualizarNuvens(GetFrameTime());
+        atualizarEspumas(GetFrameTime());
 
         tempo += GetFrameTime();
         SetShaderValue(shaderAgua, locTempo, &tempo, SHADER_UNIFORM_FLOAT);
@@ -382,20 +477,24 @@ int jogar(ListaScore **scoreBoard) {
                           (i == 0) ? BLUE : (Color){0, 100, 200, 100});
             }
         EndShaderMode();
-        
-            DrawModel(player.modelo, player.pos, 1.0f, WHITE);
-            DrawModel(boss.modelo, boss.pos, 2.0f, WHITE);
-            
-            for (int i = 0; i < totalInimigos; i++)
-                if (inimigos[i].alive)
-                    DrawModel(inimigos[i].modelo, inimigos[i].pos, 1.0f, WHITE);
-            
-            for (int i = 0; i < MAX_BULLETS; i++)
-                if (balas[i].active) {
-                    Color corBala = (player.tipo_muni == MUNI_NORMAL) ? YELLOW : 
-                                   (player.tipo_muni == MUNI_PESADA) ? ORANGE : RED;
-                    DrawSphere(balas[i].pos, 0.2f, corBala);
-                }
+
+        DrawModel(player.modelo, player.pos, 1.0f, WHITE);
+        DrawModel(boss.modelo, boss.pos, 2.0f, WHITE);
+
+        for (int i = 0; i < totalInimigos; i++)
+            if (inimigos[i].alive)
+                DrawModel(inimigos[i].modelo, inimigos[i].pos, 1.0f, WHITE);
+
+        for (int i = 0; i < MAX_BULLETS; i++)
+            if (balas[i].active) {
+                Color corBala = (player.tipo_muni == MUNI_NORMAL) ? YELLOW : 
+                               (player.tipo_muni == MUNI_PESADA) ? ORANGE : RED;
+                DrawSphere(balas[i].pos, 0.2f, corBala);
+            }
+
+        // Desenhe as nuvens
+        desenharNuvensSimples();
+        desenharEspumas();  // desenhe após os modelos
         EndMode3D();
 
         // ───────── HUD ─────────
@@ -425,7 +524,7 @@ int jogar(ListaScore **scoreBoard) {
         
         EndDrawing();
     }
-  
+
     UnloadShader(shaderAgua);
     UnloadModel(mapa);
     UnloadModel(modeloPlayer);
@@ -435,7 +534,31 @@ int jogar(ListaScore **scoreBoard) {
     int totalMuni = player.municao[0] + player.municao[1] + player.municao[2];
     add_ordenado_score(scoreBoard, player.score, totalMuni, tempoJogo/60);
     salvarScores(*scoreBoard);
-    telaGameOver();
+    
+    // Tela de vitória ou derrota
+    if (boss.hp <= 0) {
+        BeginDrawing();
+        ClearBackground(BLACK);
+        DrawText("VITÓRIA!", 280, 150, 50, GREEN);
+        DrawText(TextFormat("Score Final: %d", player.score), 260, 220, 30, WHITE);
+        DrawText("Pressione ENTER para continuar", 200, 280, 20, GRAY);
+        EndDrawing();
+        
+        while (!WindowShouldClose()) {
+            BeginDrawing();
+            ClearBackground(BLACK);
+            DrawText("VITÓRIA!", 280, 150, 50, GREEN);
+            DrawText(TextFormat("Score Final: %d", player.score), 260, 220, 30, WHITE);
+            DrawText("Pressione ENTER para continuar", 200, 280, 20, GRAY);
+            EndDrawing();
+            
+            if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE))
+                break;
+        }
+    } else {
+        telaGameOver();
+    }
+    
     return 0;
 }
 
@@ -461,4 +584,17 @@ int main(void) {
     liberarScores(&scoreBoard);
     CloseWindow();
     return 0;
+}
+
+// Retorna a bounding box do modelo já escalada e traduzida para a posição do modelo
+static BoundingBox TransformedBBox(BoundingBox box, Vector3 pos, float scale)
+{
+    BoundingBox out;
+    out.min.x = box.min.x * scale + pos.x;
+    out.min.y = box.min.y * scale + pos.y;
+    out.min.z = box.min.z * scale + pos.z;
+    out.max.x = box.max.x * scale + pos.x;
+    out.max.y = box.max.y * scale + pos.y;
+    out.max.z = box.max.z * scale + pos.z;
+    return out;
 }
