@@ -13,13 +13,8 @@
 #define MAX_BULLETS 30
 #define BULLET_SPEED 0.5f
 #define ARQUIVO_SCORES "scores.txt"
-#define MAX_NUVENS 8
-#define MAX_ESPUMAS 50
-
 
 // Prototipo para evitar declaração implícita da função TransformedBBox
-Nuvem nuvens[MAX_NUVENS];
-Espuma espumas[MAX_ESPUMAS];
 static BoundingBox TransformedBBox(BoundingBox box, Vector3 pos, float scale);
 
 // ───────── ENUMS ─────────
@@ -177,6 +172,8 @@ typedef struct {
     float velocidade;
 } Nuvem;
 
+#define MAX_NUVENS 8
+Nuvem nuvens[MAX_NUVENS];
 
 typedef struct {
     Vector3 pos;
@@ -184,6 +181,8 @@ typedef struct {
     float tamanho;
 } Espuma;
 
+#define MAX_ESPUMAS 50
+Espuma espumas[MAX_ESPUMAS];
 
 // ───────── FUNÇÕES AUXILIARES ─────────
 void mover_inimigo(Inimigo* ini, Player* player) {
