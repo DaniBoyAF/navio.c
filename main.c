@@ -261,14 +261,16 @@ int jogar(ListaScore **scoreBoard) {
 
     // --- AUDIO: inicializa e carrega sons/music ---
     InitAudioDevice();
-    Sound shotSound = LoadSound("audio/tiro.wav");
-    Sound hitSound  = LoadSound("audio/explosao.wav");
-    Music bgMusic   = LoadMusicStream("audio/musica.ogg");
-    SetSoundVolume(shotSound, 0.8f);
-    SetSoundVolume(hitSound, 0.9f);
-    SetMusicVolume(bgMusic, 0.6f);
-    PlayMusicStream(bgMusic); // começa a tocar em loop
+    Sound shotSound = LoadSound("audio/canhao.mp3");
+    Sound hitSound  = LoadSound("audio/hit.mp3");
+    Music bgMusic   = LoadMusicStream("audio/som_Mar.mp3");
 
+    //Music fundoMenuMusic = LoadMusicStream("audio/fundo.mp3");
+    SetSoundVolume(shotSound, 1.0f);
+    SetSoundVolume(hitSound, 2.0f);
+    SetMusicVolume(bgMusic, 0.7f);
+    PlayMusicStream(bgMusic); // começa a tocar em loop
+ 
     // Player init
     Player player = {0};
     player.pos = (Vector3){0, 1, 0}; strcpy(player.nome, "Player");
@@ -276,7 +278,7 @@ int jogar(ListaScore **scoreBoard) {
     player.municao[MUNI_NORMAL] = 50; player.municao[MUNI_PESADA] = 20; player.municao[MUNI_EXPLOSIVA] = 5;
     player.tipo_muni = MUNI_NORMAL; player.modelo = modeloPlayer; player.yaw = 0.0f;
     player.fireTimer = 0.0f;
-    player.fireCooldown = 10.0f; // 10 segundos de delay entre tiros
+    player.fireCooldown = 5.0f; // 5 segundos de delay entre tiros
 
     // Inimigos
     int totalInimigos = 5;
