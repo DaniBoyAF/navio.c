@@ -10,13 +10,13 @@
 #define HEIGHT 450
 #define PLAYER_SIZE 1.0f
 #define MAX_HP 20
-#define MAX_HP_BOSS 500
+#define MAX_HP_BOSS 50000
 #define MAX_BULLETS 30
-#define BULLET_SPEED 25.0f        // velocidade das balas (unidade por segundo)
+#define BULLET_SPEED 250.0f        // velocidade das balas (unidade por segundo)
 #define ARQUIVO_SCORES "scores.txt"
+#define MAP_PLANE_SIZE 2000.0f     // ajustar aqui o tamanho visual do mar
 
 // ───────── ENUMS ─────────
-typedef enum { CAM_TERCEIRA_PESSOA = 0, CAM_PRIMEIRA_PESSOA, CAM_ISOMETRICA } ModoCameraJogo;
 typedef enum { MUNI_NORMAL = 0, MUNI_PESADA, MUNI_EXPLOSIVA } TipoMunicao;
 
 // ───────── TYPEDEFS ─────────
@@ -34,6 +34,8 @@ typedef struct {
     int tipo_muni;
     Model modelo;
     float yaw;
+    float fireTimer;     // tempo restante até poder atirar de novo (segundos)
+    float fireCooldown;  // tempo de cooldown entre tiros (segundos)
 } Player;
 
 typedef struct {
@@ -73,7 +75,7 @@ typedef struct {
 } Espuma;
 
 // ───────── CONSTANTS / GLOBAL ARRAYS ─────────
-#define MAX_NUVENS 8
+#define MAX_NUVENS 34
 #define MAX_ESPUMAS 50
 static Nuvem nuvens[MAX_NUVENS];
 static Espuma espumas[MAX_ESPUMAS];
@@ -249,14 +251,23 @@ int jogar(ListaScore **scoreBoard) {
     camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
     camera.fovy = 45.0f;
     camera.projection = CAMERA_PERSPECTIVE;
-
-    ModoCameraJogo modoCam = CAM_TERCEIRA_PESSOA;
+    // modo de câmera removido — uso fixo em 1ª pessoa
 
     // Carrega modelos/texturas/shaders
     Model mapa = LoadModel("models/mar1.glb");
-    Model modeloPlayer = LoadModel("models/barco.glb");
+    Model modeloPlayer = LoadModel("models/.glb");
     Model modeloInimigo = LoadModel("models/barco.glb");
     Model modeloBoss = LoadModel("models/boss.glb");
+
+    // --- AUDIO: inicializa e carrega sons/music ---
+    InitAudioDevice();
+    Sound shotSound = LoadSound("audio/tiro.wav");
+    Sound hitSound  = LoadSound("audio/explosao.wav");
+    Music bgMusic   = LoadMusicStream("audio/musica.ogg");
+    SetSoundVolume(shotSound, 0.8f);
+    SetSoundVolume(hitSound, 0.9f);
+    SetMusicVolume(bgMusic, 0.6f);
+    PlayMusicStream(bgMusic); // começa a tocar em loop
 
     // Player init
     Player player = {0};
@@ -264,6 +275,8 @@ int jogar(ListaScore **scoreBoard) {
     player.score = 0; player.hp = MAX_HP;
     player.municao[MUNI_NORMAL] = 50; player.municao[MUNI_PESADA] = 20; player.municao[MUNI_EXPLOSIVA] = 5;
     player.tipo_muni = MUNI_NORMAL; player.modelo = modeloPlayer; player.yaw = 0.0f;
+    player.fireTimer = 0.0f;
+    player.fireCooldown = 10.0f; // 10 segundos de delay entre tiros
 
     // Inimigos
     int totalInimigos = 5;
@@ -271,11 +284,11 @@ int jogar(ListaScore **scoreBoard) {
     for (int i = 0; i < totalInimigos; i++) {
         inimigos[i].pos = (Vector3){ GetRandomValue(-50,50), 1.0f, GetRandomValue(-50,50) };
         inimigos[i].speed = 0.05f;
-        inimigos[i].hp = 3;
+        inimigos[i].hp = 30;
         inimigos[i].alive = true;
         inimigos[i].modelo = modeloInimigo;
-        inimigos[i].fireRate = 1.5f + GetRandomValue(0,150)/100.0f;
-        inimigos[i].fireTimer = GetRandomValue(0,1000)/1000.0f * inimigos[i].fireRate;
+        inimigos[i].fireRate = 10.0f;         // 10 segundos entre tiros
+        inimigos[i].fireTimer = inimigos[i].fireRate; // opcional: espera 10s antes do 1º tiro
     }
 
     // Boss
@@ -300,36 +313,33 @@ int jogar(ListaScore **scoreBoard) {
         tempoJogo++;
         float dt = GetFrameTime();
 
-        // INPUT: movimento + rotação
+        // atualiza cooldown do jogador
+        if (player.fireTimer > 0.0f) player.fireTimer -= dt;
         float moveSpeed = 5.0f * dt;
         float turnSpeed = 120.0f * dt;
         float yawRad = player.yaw * (PI / 180.0f);
         if (IsKeyDown(KEY_W)) { player.pos.x += sinf(yawRad) * moveSpeed; player.pos.z += cosf(yawRad) * moveSpeed; }
-        if (IsKeyDown(KEY_S)) { player.pos.x -= sinf(yawRad) * moveSpeed; player.pos.z -= cosf(yawRad) * moveSpeed; }
-        if (IsKeyDown(KEY_A)) player.yaw -= turnSpeed;
-        if (IsKeyDown(KEY_D)) player.yaw += turnSpeed;
+       
+        if (IsKeyDown(KEY_D)) player.yaw -= turnSpeed;
+        if (IsKeyDown(KEY_A)) player.yaw += turnSpeed;
 
         if (IsKeyPressed(KEY_ONE)) player.tipo_muni = MUNI_NORMAL;
         if (IsKeyPressed(KEY_TWO)) player.tipo_muni = MUNI_PESADA;
         if (IsKeyPressed(KEY_THREE)) player.tipo_muni = MUNI_EXPLOSIVA;
-        if (IsKeyPressed(KEY_C)) modoCam = (modoCam + 1) % 3;
-
-        // Camera follow
-        switch (modoCam) {
-            case CAM_TERCEIRA_PESSOA:
-                camera.position = (Vector3){ player.pos.x, player.pos.y + 8.0f, player.pos.z + 15.0f };
-                camera.target = player.pos;
-                break;
-            case CAM_PRIMEIRA_PESSOA:
-                camera.position = (Vector3){ player.pos.x, player.pos.y + 2.0f, player.pos.z };
-                camera.target = (Vector3){ player.pos.x, player.pos.y + 2.0f, player.pos.z - 5.0f };
-                break;
-            case CAM_ISOMETRICA:
-                camera.position = (Vector3){ player.pos.x + 20.0f, player.pos.y + 20.0f, player.pos.z + 20.0f };
-                camera.target = player.pos;
-                break;
+        if (IsKeyPressed(KEY_R)) {
+            int cap = 50; // default para MUNI_NORMAL
+            switch (player.tipo_muni) {
+                case MUNI_NORMAL:    cap = 50; break;
+                case MUNI_PESADA:    cap = 20; break;
+                case MUNI_EXPLOSIVA: cap = 5;  break;
+            }
+            player.municao[player.tipo_muni] = cap;
         }
+        // tecla C removida (somente 1ª pessoa)
 
+        // CÂMERA: 1ª PESSOA - posição no casco/olhos e target à frente conforme yaw
+        camera.position = (Vector3){ player.pos.x, player.pos.y + 2.0f, player.pos.z };
+        camera.target = (Vector3){ player.pos.x + sinf(yawRad) * 5.0f, player.pos.y + 2.0f, player.pos.z + cosf(yawRad) * 5.0f };
         int dano_arma[] = {10, 25, 50};
         int dano = dano_arma[player.tipo_muni];
 
@@ -347,7 +357,8 @@ int jogar(ListaScore **scoreBoard) {
         if (CheckCollisionBoxes(bbPlayer, bbBoss)) { player.hp -= 3; boss.pos = (Vector3){ GetRandomValue(-50,50), 1.0f, GetRandomValue(-50,50) }; }
 
         // Atirar (player)
-        if (IsKeyPressed(KEY_SPACE) && player.municao[player.tipo_muni] > 0) {
+        // player atira apenas se tiver munição e cooldown zerado
+        if (IsKeyPressed(KEY_SPACE) && player.municao[player.tipo_muni] > 0 && player.fireTimer <= 0.0f) {
             player.municao[player.tipo_muni]--;
             for (int i = 0; i < MAX_BULLETS; i++) {
                 if (!balas[i].active) {
@@ -356,9 +367,12 @@ int jogar(ListaScore **scoreBoard) {
                     balas[i].pos = (Vector3){ player.pos.x + sinf(yawRad)*1.5f, player.pos.y + 0.6f, player.pos.z + cosf(yawRad)*1.5f };
                     balas[i].dir = (Vector3){ sinf(yawRad), 0.0f, cosf(yawRad) };
                     balas[i].dano = dano;
+                    PlaySound(shotSound);
                     break;
                 }
             }
+            // inicia cooldown após o tiro
+            player.fireTimer = player.fireCooldown;
         }
 
         // Atualiza balas do jogador (usa dt)
@@ -367,7 +381,7 @@ int jogar(ListaScore **scoreBoard) {
             balas[i].pos.x += balas[i].dir.x * BULLET_SPEED * dt;
             balas[i].pos.y += balas[i].dir.y * BULLET_SPEED * dt;
             balas[i].pos.z += balas[i].dir.z * BULLET_SPEED * dt;
-            if (fabs(balas[i].pos.x) > 200 || fabs(balas[i].pos.z) > 200) { balas[i].active = false; continue; }
+            if (fabs(balas[i].pos.x) > 2000 || fabs(balas[i].pos.z) > 2000) { balas[i].active = false; continue; }
 
             // colisão com inimigos
             for (int j = 0; j < totalInimigos; j++) {
@@ -375,6 +389,7 @@ int jogar(ListaScore **scoreBoard) {
                 BoundingBox bbInimigo = TransformedBBox(GetModelBoundingBox(inimigos[j].modelo), inimigos[j].pos, 1.0f);
                 if (CheckCollisionBoxSphere(bbInimigo, balas[i].pos, 0.5f)) {
                     inimigos[j].hp -= balas[i].dano; balas[i].active = false;
+                    PlaySound(hitSound); // efeito de impacto/explosão
                     if (inimigos[j].hp <= 0) { inimigos[j].alive = false; player.score += 10; }
                     break;
                 }
@@ -437,6 +452,8 @@ int jogar(ListaScore **scoreBoard) {
         atualizarEspumas(dt);
         shaderTime += dt;
         SetShaderValue(shaderAgua, locTempo, &shaderTime, SHADER_UNIFORM_FLOAT);
+        // Atualiza streaming da música
+        UpdateMusicStream(bgMusic);
 
         // DRAW
         BeginDrawing();
@@ -446,7 +463,7 @@ int jogar(ListaScore **scoreBoard) {
         BeginShaderMode(shaderAgua);
         for (int i = 0; i < 3; i++) {
             float offset = sinf(shaderTime * 0.5f + i) * 0.2f;
-            DrawPlane((Vector3){0, -0.5f + offset, 0}, (Vector2){200,200}, (i==0)?BLUE:(Color){0,100,200,100});
+            DrawPlane((Vector3){0, -0.5f + offset, 0}, (Vector2){MAP_PLANE_SIZE, MAP_PLANE_SIZE}, (i==0)?BLUE:(Color){0,100,200,100});
         }
         EndShaderMode();
 
@@ -468,7 +485,11 @@ int jogar(ListaScore **scoreBoard) {
         desenharEspumas();
         EndMode3D();
 
-        // HUD
+        // HUD background for HP / Score / Ammo + cooldown bar
+        int hudX = 6, hudY = 6, hudW = 260, hudH = 180;
+        DrawRectangle(hudX, hudY, hudW, hudH, WHITE);
+        DrawRectangleLines(hudX, hudY, hudW, hudH, GRAY);
+
         DrawText(TextFormat("HP: %d", player.hp), 10, 10, 20, BLACK);
         DrawText(TextFormat("Score: %d", player.score), 10, 40, 20, DARKGRAY);
         Color cores[] = {YELLOW, ORANGE, RED};
@@ -477,14 +498,41 @@ int jogar(ListaScore **scoreBoard) {
             Color cor = (i==player.tipo_muni)?cores[i]:GRAY;
             DrawText(TextFormat("%d: %s x%d", i+1, nomes[i], player.municao[i]), 10, 70 + i*25, 18, cor);
         }
+
+        // Cooldown bar (player.fireTimer / player.fireCooldown)
+        float cd = player.fireCooldown;
+        float remaining = player.fireTimer;
+        if (cd <= 0.0f) cd = 1.0f;
+        float progress = 1.0f - (remaining / cd); // 0 = just fired, 1 = ready
+        if (progress < 0.0f) progress = 0.0f;
+        if (progress > 1.0f) progress = 1.0f;
+
+        int barX = 10;
+        int barW = 240;
+        int barY = 70 + 3*25 + 10; // below ammo lines
+        int barH = 18;
+        // background
+        DrawRectangle(barX - 4, barY - 4, barW + 8, barH + 8, Fade(LIGHTGRAY, 0.8f));
+        // empty bar
+        DrawRectangle(barX, barY, barW, barH, GRAY);
+        // filled portion
+        Color fill = (progress >= 1.0f) ? GREEN : ORANGE;
+        DrawRectangle(barX, barY, (int)(barW * progress), barH, fill);
+        // border and text
+        DrawRectangleLines(barX, barY, barW, barH, BLACK);
+        if (remaining > 0.01f) {
+            DrawText(TextFormat("Cooldown: %.1fs", remaining), barX, barY - 20, 14, DARKGRAY);
+        } else {
+            DrawText("Cooldown: Ready", barX, barY - 20, 14, DARKGREEN);
+        }
+
         if (boss.hp > 0) {
             DrawRectangle(WIDTH/2 - 150, 10, 300, 20, DARKGRAY);
             float pct = (float)boss.hp / MAX_HP_BOSS;
             DrawRectangle(WIDTH/2 - 150, 10, (int)(300 * pct), 20, RED);
             DrawText(TextFormat("BOSS: %d / %d", boss.hp, MAX_HP_BOSS), WIDTH/2 - 70, 12, 16, WHITE);
         }
-        const char* camModes[] = {"3ª Pessoa","1ª Pessoa","Isométrica"};
-        DrawText(TextFormat("Câmera (C): %s", camModes[modoCam]), 10, HEIGHT - 30, 16, DARKBLUE);
+        DrawText("Câmera: 1ª Pessoa", 10, HEIGHT - 30, 16, DARKGRAY);
 
         EndDrawing();
     }
@@ -495,6 +543,13 @@ int jogar(ListaScore **scoreBoard) {
     UnloadModel(modeloPlayer);
     UnloadModel(modeloInimigo);
     UnloadModel(modeloBoss);
+
+    // stop/unload audio
+    StopMusicStream(bgMusic);
+    UnloadMusicStream(bgMusic);
+    UnloadSound(shotSound);
+    UnloadSound(hitSound);
+    CloseAudioDevice();
 
     int totalMuni = player.municao[0] + player.municao[1] + player.municao[2];
     add_ordenado_score(scoreBoard, player.score, totalMuni, tempoJogo/60);
