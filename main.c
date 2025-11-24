@@ -6,8 +6,8 @@
 #include <math.h>
 
 // ───────── CONFIG ─────────
-#define WIDTH 800
-#define HEIGHT 450
+#define WIDTH 1280
+#define HEIGHT 720
 #define PLAYER_SIZE 1.0f
 #define MAX_HP 20
 #define MAX_HP_BOSS 5000
@@ -15,6 +15,7 @@
 #define BULLET_SPEED 250.0f        // velocidade das balas (unidade por segundo)
 #define ARQUIVO_SCORES "scores.txt"
 #define MAP_PLANE_SIZE 2000.0f     // ajustar aqui o tamanho visual do mar
+
 
 // ───────── ENUMS ─────────
 typedef enum { MUNI_NORMAL = 0, MUNI_PESADA, MUNI_EXPLOSIVA } TipoMunicao;
@@ -83,6 +84,10 @@ static Espuma espumas[MAX_ESPUMAS];
 static Texture2D menuTexture;
 // texture para a tabela de scores
 static Texture2D scoreTexture;
+#define SCORE_ROWS 10
+#define SCORE_COLS 3
+static void buildScoresMatrix(ListaScore* inicio, int mat[SCORE_ROWS][SCORE_COLS]);
+static void salvarScoresComoMatriz(ListaScore* inicio);
 
 // ───────── PROTÓTIPOS ─────────
 static BoundingBox TransformedBBox(BoundingBox box, Vector3 pos, float scale);
@@ -99,6 +104,8 @@ static void add_ordenado_score(ListaScore** inicio, int pontuacao, int dinheiro,
 static void salvarScores(ListaScore* inicio);
 static void carregarScores(ListaScore** inicio);
 static void liberarScores(ListaScore** inicio);
+static void buildScoresMatrix(ListaScore* inicio, int mat[SCORE_ROWS][SCORE_COLS]);
+static void salvarScoresComoMatriz(ListaScore* inicio);
 
 // Gameplay helpers
 static void mover_inimigo(Inimigo* ini, Player* player);
@@ -150,6 +157,34 @@ static void carregarScores(ListaScore** inicio) {
 static void liberarScores(ListaScore** inicio){
     ListaScore* temp;
     while (*inicio) { temp = *inicio; *inicio = (*inicio)->proximo; free(temp); }
+}
+
+// monta matriz (até SCORE_ROWS) a partir da lista de scores
+static void buildScoresMatrix(ListaScore* inicio, int mat[SCORE_ROWS][SCORE_COLS]) {
+    for (int r = 0; r < SCORE_ROWS; r++) {
+        for (int c = 0; c < SCORE_COLS; c++) mat[r][c] = 0;
+    }
+    ListaScore* tmp = inicio;
+    int i = 0;
+    while (tmp != NULL && i < SCORE_ROWS) {
+        mat[i][0] = tmp->pontuacao;
+        mat[i][1] = tmp->dinheiro;
+        mat[i][2] = tmp->tempo;
+        tmp = tmp->proximo; i++;
+    }
+}
+
+// salva matriz em arquivo (formato: rows cols\n then rows lines)
+static void salvarScoresComoMatriz(ListaScore* inicio) {
+    int mat[SCORE_ROWS][SCORE_COLS];
+    buildScoresMatrix(inicio, mat);
+    FILE *f = fopen("scores_matrix.txt", "w");
+    if (!f) return;
+    fprintf(f, "%d %d\n", SCORE_ROWS, SCORE_COLS);
+    for (int r = 0; r < SCORE_ROWS; r++) {
+        fprintf(f, "%d %d %d\n", mat[r][0], mat[r][1], mat[r][2]);
+    }
+    fclose(f);
 }
 
 // ───────── Ambiente (nuvens / espumas) ─────────
@@ -207,58 +242,141 @@ bool ver_batida(Vector3 a, float tamA, Vector3 b, float tamB) {
 // ───────── Telas (menu / scoreboard / game over) ─────────
 int menu(void) {
     while (!WindowShouldClose()) {
+        int sw = GetScreenWidth();
+        int sh = GetScreenHeight();
+        float scale = (float)sw / (float)WIDTH; // escala relativa à largura base
+        int titleFont = (int)fmaxf(20, 40 * scale);
+        int itemFont  = (int)fmaxf(12, 25 * scale);
+
         BeginDrawing();
-        // desenha imagem do menu cobrindo toda a janela (esticada)
+        // fundo cobrindo toda a janela
         if (menuTexture.id != 0) {
             Rectangle src = { 0.0f, 0.0f, (float)menuTexture.width, (float)menuTexture.height };
-            Rectangle dst = { 0.0f, 0.0f, (float)WIDTH, (float)HEIGHT };
+            Rectangle dst = { 0.0f, 0.0f, (float)sw, (float)sh };
             DrawTexturePro(menuTexture, src, dst, (Vector2){0,0}, 0.0f, WHITE);
-        } else {
-            ClearBackground(RAYWHITE);
-        }
-        DrawText("SEA CANNON", 320, 100, 40, WHITE);
-        DrawText("1 - Começar o jogo", 280, 200, 25, WHITE);
-        DrawText("2 - Ver pontuações", 280, 240, 25, WHITE);
-        DrawText("3 - Sair", 280, 280, 25, WHITE);
+        } else ClearBackground(RAYWHITE);
+
+        // centraliza textos
+        const char *title = "SEA CANNON";
+        int wTitle = MeasureText(title, titleFont);
+        DrawText(title, sw/2 - wTitle/2, (int)(sh*0.12f), titleFont, WHITE);
+
+        const char *opt1 = "1 - Começar o jogo";
+        const char *opt2 = "2 - Ver pontuações";
+        const char *opt3 = "3 - Sair";
+        const char *opt4 = "4 - Ajuda (comandos)";
+        int gap = (int)(30 * scale);
+        int baseY = sh/2 - gap;
+        DrawText(opt1, sw/2 - MeasureText(opt1, itemFont)/2, baseY, itemFont, WHITE);
+        DrawText(opt2, sw/2 - MeasureText(opt2, itemFont)/2, baseY + gap, itemFont, WHITE);
+        DrawText(opt3, sw/2 - MeasureText(opt3, itemFont)/2, baseY + gap*2, itemFont, WHITE);
+        DrawText(opt4, sw/2 - MeasureText(opt4, itemFont)/2, baseY + gap*3, itemFont, WHITE);
+
         EndDrawing();
         if (IsKeyPressed(KEY_ONE)) return 1;
         if (IsKeyPressed(KEY_TWO)) return 2;
         if (IsKeyPressed(KEY_THREE) || IsKeyPressed(KEY_ESCAPE)) return 3;
+        if (IsKeyPressed(KEY_FOUR))
+        return 4;
     }
     return 3;
 }
 
 void mostrarScoresTela(ListaScore* inicio) {
     while (!WindowShouldClose()) {
+        int sw = GetScreenWidth();
+        int sh = GetScreenHeight();
+        float scale = (float)sw / (float)WIDTH;
+        int titleFont = (int)fmaxf(18, 34 * scale);
+        int entryFont = (int)fmaxf(12, 20 * scale);
+
         BeginDrawing();
-        // desenha imagem de fundo cobrindo toda a janela (esticada)
+        // fundo esticado para toda a tela
         if (scoreTexture.id != 0) {
             Rectangle src = { 0.0f, 0.0f, (float)scoreTexture.width, (float)scoreTexture.height };
-            Rectangle dst = { 0.0f, 0.0f, (float)WIDTH, (float)HEIGHT };
+            Rectangle dst = { 0.0f, 0.0f, (float)sw, (float)sh };
             DrawTexturePro(scoreTexture, src, dst, (Vector2){0,0}, 0.0f, WHITE);
         } else {
             ClearBackground(RAYWHITE);
         }
 
-        // desenha o texto por cima do fundo
-        DrawText("===== SCOREBOARD =====", 220, 40, 30, WHITE);
-        int y = 100; ListaScore* temp = inicio; int count = 0;
+        // título centralizado
+        const char *title = "===== SCOREBOARD =====";
+        DrawText(title, sw/2 - MeasureText(title, titleFont)/2, (int)(sh*0.06f), titleFont, WHITE);
+
+        // lista: centraliza cada linha horizontalmente e espaça verticalmente
+        int y = (int)(sh * 0.16f);
+        int lineGap = (int)fmaxf(20, 30 * scale);
+        ListaScore* temp = inicio; int count = 0;
         while (temp != NULL && count < 10) {
-            DrawText(TextFormat("%d) Pontos: %d | Dinheiro: %d | Tempo: %d", count+1, temp->pontuacao, temp->dinheiro, temp->tempo),
-                     150, y, 20,WHITE );
-            y += 30; temp = temp->proximo; count++;
+            char line[128];
+            snprintf(line, sizeof(line), "%d) Pontos: %d | Dinheiro: %d | Tempo: %d", count+1, temp->pontuacao, temp->dinheiro, temp->tempo);
+            DrawText(line, sw/2 - MeasureText(line, entryFont)/2, y, entryFont, WHITE);
+            y += lineGap; temp = temp->proximo; count++;
         }
-        DrawText("Pressione ENTER ou ESPACO para voltar", 200, HEIGHT - 60, 20, WHITE);
+
+        // instrução centralizada na base
+        const char *instr = "Pressione ENTER ou ESPACO para voltar";
+        DrawText(instr, sw/2 - MeasureText(instr, entryFont)/2, sh - (int)(40 * scale), entryFont, WHITE);
         EndDrawing();
+
         if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) break;
+    }
+    // salva a versão em matriz quando sair da tela (arquivo scores_matrix.txt)
+    salvarScoresComoMatriz(inicio);
+}
+
+// tela de ajuda / comandos
+void mostrarAjudaTela(void) {
+    while (!WindowShouldClose()) {
+        int sw = GetScreenWidth();
+        int sh = GetScreenHeight();
+        float scale = (float)sw / (float)WIDTH;
+        int titleFont = (int)fmaxf(18, 34 * scale);
+        int entryFont = (int)fmaxf(12, 18 * scale);
+
+        BeginDrawing();
+        ClearBackground(BLACK);
+        const char *title = "COMANDOS";
+        DrawText(title, sw/2 - MeasureText(title, titleFont)/2, (int)(sh*0.08f), titleFont, WHITE);
+
+        const char *lines[] = {
+            "MOVIMENTACAO: W (frente) | A (gira esquerda) | D (gira direita)",
+            "ATIRAR: Q",
+            "TROCAR MUNICAO: 1 - Normal | 2 - Pesada | 3 - Explosiva",
+            "RECARREGAR/RESET MUNICAO: R",
+            "PAINEL/MENU: ENTER/SPACE para confirmar | ESC para voltar/sair",
+            "NA TELA: 2 - Ver pontuacoes | 3 - Sair | 4 - Ajuda",
+            "OBS: Balas: Q, inimigos e boss sao colisivos via bounding boxes"
+        };
+
+        int y = (int)(sh * 0.18f);
+        int gap = (int)fmaxf(20, 28 * scale);
+        for (int i = 0; i < sizeof(lines)/sizeof(lines[0]); i++) {
+            DrawText(lines[i], sw/2 - MeasureText(lines[i], entryFont)/2, y, entryFont, LIGHTGRAY);
+            y += gap;
+        }
+
+        const char *instr = "Pressione ENTER, ESPACO ou ESC para voltar";
+        DrawText(instr, sw/2 - MeasureText(instr, entryFont)/2, sh - (int)(60 * scale), entryFont, WHITE);
+        EndDrawing();
+
+        if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ESCAPE)) break;
     }
 }
 
 void telaGameOver(void) {
     while (!WindowShouldClose()) {
-        BeginDrawing(); ClearBackground(BLACK);
-        DrawText("GAME OVER", 300, 180, 40, RED);
-        DrawText("Pressione ENTER ou ESPACO para voltar ao menu", 140, 250, 20, WHITE);
+        int sw = GetScreenWidth();
+        int sh = GetScreenHeight();
+        int titleFont = (int)fmaxf(20, 48.0f * ((float)sw / (float)WIDTH));
+        int instrFont  = (int)fmaxf(12, 20.0f * ((float)sw / (float)WIDTH));
+        BeginDrawing();
+        ClearBackground(BLACK);
+        const char *title = "GAME OVER";
+        DrawText(title, sw/2 - MeasureText(title, titleFont)/2, sh/2 - titleFont, titleFont, RED);
+        const char *instr = "Pressione ENTER ou ESPACO para voltar ao menu";
+        DrawText(instr, sw/2 - MeasureText(instr, instrFont)/2, sh/2 + (int)(24.0f * ((float)sw / (float)WIDTH)), instrFont, WHITE);
         EndDrawing();
         if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) break;
     }
@@ -410,18 +528,18 @@ int jogar(ListaScore **scoreBoard) {
             // colisão com inimigos
             for (int j = 0; j < totalInimigos; j++) {
                 if (!inimigos[j].alive) continue;
-                BoundingBox bbInimigo = TransformedBBox(GetModelBoundingBox(inimigos[j].modelo), inimigos[j].pos, 1.0f);
+                BoundingBox bbInimigo = TransformedBBox(GetModelBoundingBox(inimigos[j].modelo), inimigos[j].pos, 2.0f);
                 if (CheckCollisionBoxSphere(bbInimigo, balas[i].pos, 0.5f)) {
                     inimigos[j].hp -= balas[i].dano; balas[i].active = false;
                     PlaySound(hitSound); // efeito de impacto/explosão
-                    if (inimigos[j].hp <= 0) { inimigos[j].alive = false; player.score += 10; }
+                    if (inimigos[j].hp <= 0) { inimigos[j].alive = false; player.score += 100; }
                     break;
                 }
             }
             // colisão com boss
             if (balas[i].active && CheckCollisionBoxSphere(bbBoss, balas[i].pos, 0.5f)) {
                 boss.hp -= balas[i].dano; balas[i].active = false;
-                if (boss.hp <= 0) { boss.hp = 0; player.score += 100; break; }
+                if (boss.hp <= 0) { boss.hp = 0; player.score += 10000; break; }
             }
         }
 
@@ -585,15 +703,30 @@ int jogar(ListaScore **scoreBoard) {
     salvarScores(*scoreBoard);
 
     if (boss.hp <= 0) {
-        BeginDrawing(); ClearBackground(BLACK); DrawText("VITÓRIA!", 280, 150, 50, GREEN); EndDrawing();
-        while (!WindowShouldClose()) { BeginDrawing(); ClearBackground(BLACK); DrawText("VITÓRIA!", 280,150,50,GREEN); EndDrawing(); if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) break; }
-    } else telaGameOver();
+        // tela de vitória centralizada
+        while (!WindowShouldClose()) {
+            int sw = GetScreenWidth(), sh = GetScreenHeight();
+            int titleFont = (int)fmaxf(24, 56.0f * ((float)sw / (float)WIDTH));
+            int instrFont = (int)fmaxf(12, 20.0f * ((float)sw / (float)WIDTH));
+            BeginDrawing();
+            ClearBackground(BLACK);
+            const char *msg = "VITÓRIA!";
+            DrawText(msg, sw/2 - MeasureText(msg, titleFont)/2, sh/2 - titleFont, titleFont, GREEN);
+            const char *instr = "Pressione ENTER ou ESPACO para voltar";
+            DrawText(instr, sw/2 - MeasureText(instr, instrFont)/2, sh/2 + (int)(28.0f * ((float)sw / (float)WIDTH)), instrFont, WHITE);
+            EndDrawing();
+            if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) break;
+        }
+    } else {
+        telaGameOver();
+    }
 
     return 0;
 }
 
 // ───────── main ─────────
 int main(void) {
+    
     InitWindow(WIDTH, HEIGHT, "Navio 3D");
     SetExitKey(KEY_NULL);
     SetTargetFPS(60);
@@ -613,6 +746,7 @@ int main(void) {
         int opcao = menu();
         if (opcao == 1) jogar(&scoreBoard);
         else if (opcao == 2) mostrarScoresTela(scoreBoard);
+        else if (opcao == 4) mostrarAjudaTela();
         else if (opcao == 3) break;
     }
 
