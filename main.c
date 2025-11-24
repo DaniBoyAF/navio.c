@@ -10,7 +10,7 @@
 #define HEIGHT 450
 #define PLAYER_SIZE 1.0f
 #define MAX_HP 20
-#define MAX_HP_BOSS 50000
+#define MAX_HP_BOSS 5000
 #define MAX_BULLETS 30
 #define BULLET_SPEED 250.0f        // velocidade das balas (unidade por segundo)
 #define ARQUIVO_SCORES "scores.txt"
@@ -79,6 +79,10 @@ typedef struct {
 #define MAX_ESPUMAS 50
 static Nuvem nuvens[MAX_NUVENS];
 static Espuma espumas[MAX_ESPUMAS];
+// textura do menu (png)
+static Texture2D menuTexture;
+// texture para a tabela de scores
+static Texture2D scoreTexture;
 
 // ───────── PROTÓTIPOS ─────────
 static BoundingBox TransformedBBox(BoundingBox box, Vector3 pos, float scale);
@@ -203,11 +207,19 @@ bool ver_batida(Vector3 a, float tamA, Vector3 b, float tamB) {
 // ───────── Telas (menu / scoreboard / game over) ─────────
 int menu(void) {
     while (!WindowShouldClose()) {
-        BeginDrawing(); ClearBackground(RAYWHITE);
-        DrawText("NAVIO 3D", 320, 100, 40, BLUE);
-        DrawText("1 - Começar o jogo", 280, 200, 25, DARKGRAY);
-        DrawText("2 - Ver pontuações", 280, 240, 25, DARKGRAY);
-        DrawText("3 - Sair", 280, 280, 25, DARKGRAY);
+        BeginDrawing();
+        // se tiver textura, desenha cobrindo toda a janela; senão pinta fundo branco
+        if (menuTexture.id != 0) {
+            Rectangle src = { 0.0f, 0.0f, (float)menuTexture.width, (float)menuTexture.height };
+            Rectangle dst = { 0.0f, 0.0f, (float)WIDTH, (float)HEIGHT };
+            DrawTexturePro(menuTexture, src, dst, (Vector2){0,0}, 0.0f, WHITE);
+        } else {
+            ClearBackground(RAYWHITE);
+        }
+        DrawText("SEA CANNON", 320, 100, 40, WHITE);
+        DrawText("1 - Começar o jogo", 280, 200, 25, WHITE);
+        DrawText("2 - Ver pontuações", 280, 240, 25, WHITE);
+        DrawText("3 - Sair", 280, 280, 25, WHITE);
         EndDrawing();
         if (IsKeyPressed(KEY_ONE)) return 1;
         if (IsKeyPressed(KEY_TWO)) return 2;
@@ -219,11 +231,21 @@ int menu(void) {
 void mostrarScoresTela(ListaScore* inicio) {
     while (!WindowShouldClose()) {
         BeginDrawing(); ClearBackground(RAYWHITE);
+        // desenha imagem lateral (se existir) e o texto da tabela ao lado
+        if (scoreTexture.id != 0) {
+            // desenha a imagem no lado esquerdo (ajuste x/y/w/h conforme desejar)
+            Rectangle src = { 0.0f, 0.0f, (float)scoreTexture.width, (float)scoreTexture.height };
+            float scale = 120.0f / (float)scoreTexture.width; // largura alvo 120px
+            Rectangle dst = { 20.0f, 80.0f, scoreTexture.width * scale, scoreTexture.height * scale };
+            DrawTexturePro(scoreTexture, src, dst, (Vector2){0,0}, 0.0f, WHITE);
+        }
         DrawText("===== SCOREBOARD =====", 220, 40, 30, BLACK);
         int y = 100; ListaScore* temp = inicio; int count = 0;
+        // desloca o texto para a direita se a imagem estiver presente
+        int textX = (scoreTexture.id != 0) ? 160 : 150;
         while (temp != NULL && count < 10) {
             DrawText(TextFormat("%d) Pontos: %d | Dinheiro: %d | Tempo: %d", count+1, temp->pontuacao, temp->dinheiro, temp->tempo),
-                     150, y, 20, DARKGRAY);
+                     textX, y, 20, DARKGRAY);
             y += 30; temp = temp->proximo; count++;
         }
         DrawText("Pressione ENTER ou ESPACO para voltar", 200, HEIGHT - 60, 20, RED);
@@ -266,7 +288,7 @@ int jogar(ListaScore **scoreBoard) {
     Music bgMusic   = LoadMusicStream("audio/som_Mar.mp3");
 
     //Music fundoMenuMusic = LoadMusicStream("audio/fundo.mp3");
-    SetSoundVolume(shotSound, 1.0f);
+    SetSoundVolume(shotSound, 2.0f);
     SetSoundVolume(hitSound, 2.0f);
     SetMusicVolume(bgMusic, 0.7f);
     PlayMusicStream(bgMusic); // começa a tocar em loop
@@ -360,7 +382,7 @@ int jogar(ListaScore **scoreBoard) {
 
         // Atirar (player)
         // player atira apenas se tiver munição e cooldown zerado
-        if (IsKeyPressed(KEY_SPACE) && player.municao[player.tipo_muni] > 0 && player.fireTimer <= 0.0f) {
+        if (IsKeyPressed(KEY_Q) && player.municao[player.tipo_muni] > 0 && player.fireTimer <= 0.0f) {
             player.municao[player.tipo_muni]--;
             for (int i = 0; i < MAX_BULLETS; i++) {
                 if (!balas[i].active) {
@@ -430,8 +452,13 @@ int jogar(ListaScore **scoreBoard) {
             enemyBullets[i].pos.x += enemyBullets[i].dir.x * BULLET_SPEED * dt;
             enemyBullets[i].pos.y += enemyBullets[i].dir.y * BULLET_SPEED * dt;
             enemyBullets[i].pos.z += enemyBullets[i].dir.z * BULLET_SPEED * dt;
-            if (fabs(enemyBullets[i].pos.x) > 200 || fabs(enemyBullets[i].pos.z) > 200) { enemyBullets[i].active = false; continue; }
-            if (ver_batida(enemyBullets[i].pos, 0.3f, player.pos, PLAYER_SIZE)) { player.hp -= enemyBullets[i].dano; enemyBullets[i].active = false; }
+            // esse 2000 é o limite do mapa (fora disso, desativa a bala)
+            if (fabs(enemyBullets[i].pos.x) > 2000 || fabs(enemyBullets[i].pos.z) > 2000) { 
+                enemyBullets[i].active = false; continue; 
+            }
+            if (ver_batida(enemyBullets[i].pos, 0.3f, player.pos, PLAYER_SIZE)) {
+                 player.hp -= enemyBullets[i].dano; enemyBullets[i].active = false; 
+                }
         }
 
         // Espumas baseadas em movimento
@@ -572,6 +599,13 @@ int main(void) {
     SetTargetFPS(60);
     srand(time(NULL));
 
+    // carrega imagem do menu (coloque images/menu.png)
+    if (FileExists("img/main.png")) menuTexture = LoadTexture("img/main.png");
+    else { menuTexture = (Texture2D){0}; printf("images/menu.png not found\n"); }
+    // carrega imagem para o painel/tabela de scores
+    if (FileExists("img/main2.png")) scoreTexture = LoadTexture("img/main2.png");
+    else { scoreTexture = (Texture2D){0}; /* opcional: printf("img/score.png not found\n"); */ }
+
     ListaScore* scoreBoard = NULL;
     carregarScores(&scoreBoard);
 
@@ -584,6 +618,8 @@ int main(void) {
 
     salvarScores(scoreBoard);
     liberarScores(&scoreBoard);
+    if (menuTexture.id != 0) UnloadTexture(menuTexture);
+    if (scoreTexture.id != 0) UnloadTexture(scoreTexture);
     CloseWindow();
     return 0;
 }
