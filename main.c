@@ -208,7 +208,7 @@ bool ver_batida(Vector3 a, float tamA, Vector3 b, float tamB) {
 int menu(void) {
     while (!WindowShouldClose()) {
         BeginDrawing();
-        // se tiver textura, desenha cobrindo toda a janela; senão pinta fundo branco
+        // desenha imagem do menu cobrindo toda a janela (esticada)
         if (menuTexture.id != 0) {
             Rectangle src = { 0.0f, 0.0f, (float)menuTexture.width, (float)menuTexture.height };
             Rectangle dst = { 0.0f, 0.0f, (float)WIDTH, (float)HEIGHT };
@@ -230,25 +230,25 @@ int menu(void) {
 
 void mostrarScoresTela(ListaScore* inicio) {
     while (!WindowShouldClose()) {
-        BeginDrawing(); ClearBackground(RAYWHITE);
-        // desenha imagem lateral (se existir) e o texto da tabela ao lado
+        BeginDrawing();
+        // desenha imagem de fundo cobrindo toda a janela (esticada)
         if (scoreTexture.id != 0) {
-            // desenha a imagem no lado esquerdo (ajuste x/y/w/h conforme desejar)
             Rectangle src = { 0.0f, 0.0f, (float)scoreTexture.width, (float)scoreTexture.height };
-            float scale = 120.0f / (float)scoreTexture.width; // largura alvo 120px
-            Rectangle dst = { 20.0f, 80.0f, scoreTexture.width * scale, scoreTexture.height * scale };
+            Rectangle dst = { 0.0f, 0.0f, (float)WIDTH, (float)HEIGHT };
             DrawTexturePro(scoreTexture, src, dst, (Vector2){0,0}, 0.0f, WHITE);
+        } else {
+            ClearBackground(RAYWHITE);
         }
-        DrawText("===== SCOREBOARD =====", 220, 40, 30, BLACK);
+
+        // desenha o texto por cima do fundo
+        DrawText("===== SCOREBOARD =====", 220, 40, 30, WHITE);
         int y = 100; ListaScore* temp = inicio; int count = 0;
-        // desloca o texto para a direita se a imagem estiver presente
-        int textX = (scoreTexture.id != 0) ? 160 : 150;
         while (temp != NULL && count < 10) {
             DrawText(TextFormat("%d) Pontos: %d | Dinheiro: %d | Tempo: %d", count+1, temp->pontuacao, temp->dinheiro, temp->tempo),
-                     textX, y, 20, DARKGRAY);
+                     150, y, 20,WHITE );
             y += 30; temp = temp->proximo; count++;
         }
-        DrawText("Pressione ENTER ou ESPACO para voltar", 200, HEIGHT - 60, 20, RED);
+        DrawText("Pressione ENTER ou ESPACO para voltar", 200, HEIGHT - 60, 20, WHITE);
         EndDrawing();
         if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) break;
     }
