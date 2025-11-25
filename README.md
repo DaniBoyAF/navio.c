@@ -39,9 +39,11 @@ mingw32-make jogo   # no Windows/mingw
 ```
 
 Como executar
-```bash
-./jogo
-```
+Terminal
+Comando para Windows:
+C:\raylib\w64devkit\bin\mingw32-make.exe RAYLIB_PATH=C:/raylib/raylib PROJECT_NAME=main OBJS=main.c BUILD_MODE=DEBUG
+Comando para Linux:
+gcc main.c -o main -lraylib -lGL -lm -lpthread -ldl -lrt -lX11
 
 Controles principais
 - Menu: 1 = jogar, 2 = scores, 3 = sair, 4 = ajuda
@@ -74,52 +76,4 @@ Precisa de algo automático?
   - debug visual de hitboxes,
   - script de build adaptado para Linux/Windows.
 
-```// filepath: d:\ADM\Área de Trabalho\web site\navio.c\README.md
-
-# Navio 3D — README
-
-Resumo
-- Jogo em C usando raylib. Projeto single-file principal: `main.c`.
-- Implementa: structs, ponteiros, alocação dinâmica, listas encadeadas, matrizes, leitura/escrita em arquivo (scores).
-
-Estrutura e onde olhar (principais pontos em main.c)
-- Menu e telas:
-  - menu(): mostra opções (Iniciar, Scores, Ajuda, Sair).
-  - mostrarScoresTela(): desenha o scoreboard e salva matriz de scores (`scores_matrix.txt`).
-  - mostrarAjudaTela(): lista comandos.
-- Jogo:
-  - jogar(): loop principal do jogo, render, física, colisões.
-  - Hitboxes: BoundingBox calculados com `TransformedBBox(GetModelBoundingBox(...), pos, scale)`.
-- Scores:
-  - Lista ligada `ListaScore` com funções `carregarScores()`, `salvarScores()`, `add_ordenado_score()`, `liberarScores()`.
-  - `buildScoresMatrix()` / `salvarScoresComoMatriz()` → cria e grava matriz 10x3.
-- Matrizes:
-  - `mapGrid[20][20]` (se aplicada) — minimapa simples, ou a matriz temporária de scores em `buildScoresMatrix()`.
-- Debug:
-  - Flag `showHitboxes` (ativa via tecla F1 se implementada) para desenhar caixas wireframe.
-
-Dependências (Linux)
-- gcc, make, raylib (instale via source ou pacote do sistema).
-- Pacotes recomendados: build-essential, cmake, libglfw3-dev, libopenal-dev, libasound2-dev, libx11-dev, libxrandr-dev, libxcursor-dev, libxi-dev
-
-Como compilar (exemplo Ubuntu)
-```bash
-# instale raylib (se não tiver)
-git clone https://github.com/raysan5/raylib.git
-cd raylib/src
-make PLATFORM=PLATFORM_DESKTOP
-sudo make install
-
-# compilar o projeto (no diretório do Makefile)
-make
-# ou
-mingw32-make jogo   # no Windows/mingw
-```
-
-Como executar
-```Terminal
-Comando para Windows:
-C:\raylib\w64devkit\bin\mingw32-make.exe RAYLIB_PATH=C:/raylib/raylib PROJECT_NAME=main OBJS=main.c BUILD_MODE=DEBUG
-Comando para Linux:
-gcc main.c -o main -lraylib -lGL -lm -lpthread -ldl -lrt -lX11
 ```
