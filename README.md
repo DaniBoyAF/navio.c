@@ -73,9 +73,6 @@ Editar configurações
 - Ajustar hitbox do barco: altere o scale ou expanda `bbPlayer.min/max` após `TransformedBBox`.
 
 
-https://github.com/user-attachments/assets/fd4130ed-2e80-402a-8444-babdb1ce6656
-
-
 Precisa de algo automático?
 - Posso adicionar:
   - matriz global de scores (dinâmica),
