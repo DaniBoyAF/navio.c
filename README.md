@@ -45,6 +45,8 @@ C:\raylib\w64devkit\bin\mingw32-make.exe RAYLIB_PATH=C:/raylib/raylib PROJECT_NA
 Comando para Linux:
 gcc main.c -o main -lraylib -lGL -lm -lpthread -ldl -lrt -lX11
 
+E depois vc tem q ir pra a pasta e abri o arquivo jogo.exe ou main.exe.
+
 Controles principais
 - Menu: 1 = jogar, 2 = scores, 3 = sair, 4 = ajuda
 - Movimento: W (frente), A/D (girar)

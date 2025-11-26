@@ -178,9 +178,9 @@ static void buildScoresMatrix(ListaScore* inicio, int mat[SCORE_ROWS][SCORE_COLS
 static void salvarScoresComoMatriz(ListaScore* inicio) {
     int mat[SCORE_ROWS][SCORE_COLS];
     buildScoresMatrix(inicio, mat);
-    FILE *f = fopen("scores_matrix.txt", "w");
+    // grava a matriz no arquivo de scores padrão (substitui scores.txt)
+    FILE *f = fopen(ARQUIVO_SCORES, "w");
     if (!f) return;
-    fprintf(f, "%d %d\n", SCORE_ROWS, SCORE_COLS);
     for (int r = 0; r < SCORE_ROWS; r++) {
         fprintf(f, "%d %d %d\n", mat[r][0], mat[r][1], mat[r][2]);
     }
@@ -283,6 +283,10 @@ int menu(void) {
 }
 
 void mostrarScoresTela(ListaScore* inicio) {
+    // monta a matriz a partir da lista
+    int mat[SCORE_ROWS][SCORE_COLS];
+    buildScoresMatrix(inicio, mat);
+
     while (!WindowShouldClose()) {
         int sw = GetScreenWidth();
         int sh = GetScreenHeight();
@@ -301,28 +305,47 @@ void mostrarScoresTela(ListaScore* inicio) {
         }
 
         // título centralizado
-        const char *title = "===== SCOREBOARD =====";
+        const char *title = "===== SCOREBOARD (Matriz) =====";
         DrawText(title, sw/2 - MeasureText(title, titleFont)/2, (int)(sh*0.06f), titleFont, WHITE);
 
-        // lista: centraliza cada linha horizontalmente e espaça verticalmente
+        // cabeçalho de colunas
+        const char *h0 = "PONTOS";
+        const char *h1 = "DINHEIRO";
+        const char *h2 = "TEMPO";
+        int colGap = (int)(140 * scale);
+        int cx = sw/2;
+        int x0 = cx - colGap;
+        int x1 = cx;
+        int x2 = cx + colGap;
         int y = (int)(sh * 0.16f);
-        int lineGap = (int)fmaxf(20, 30 * scale);
-        ListaScore* temp = inicio; int count = 0;
-        while (temp != NULL && count < 10) {
-            char line[128];
-            snprintf(line, sizeof(line), "%d) Pontos: %d | Dinheiro: %d | Tempo: %d", count+1, temp->pontuacao, temp->dinheiro, temp->tempo);
-            DrawText(line, sw/2 - MeasureText(line, entryFont)/2, y, entryFont, WHITE);
-            y += lineGap; temp = temp->proximo; count++;
+        DrawText(h0, x0 - MeasureText(h0, entryFont)/2, y, entryFont, YELLOW);
+        DrawText(h1, x1 - MeasureText(h1, entryFont)/2, y, entryFont, YELLOW);
+        DrawText(h2, x2 - MeasureText(h2, entryFont)/2, y, entryFont, YELLOW);
+
+        // linhas da matriz
+        int lineGap = (int)fmaxf(22, 30 * scale);
+        y += lineGap;
+        for (int r = 0; r < SCORE_ROWS; r++) {
+            char s0[32], s1[32], s2[32];
+            snprintf(s0, sizeof(s0), "%d", mat[r][0]);
+            snprintf(s1, sizeof(s1), "%d", mat[r][1]);
+            snprintf(s2, sizeof(s2), "%d", mat[r][2]);
+            DrawText(s0, x0 - MeasureText(s0, entryFont)/2, y, entryFont, WHITE);
+            DrawText(s1, x1 - MeasureText(s1, entryFont)/2, y, entryFont, WHITE);
+            DrawText(s2, x2 - MeasureText(s2, entryFont)/2, y, entryFont, WHITE);
+            y += lineGap;
         }
 
-        // instrução centralizada na base
+        // instrução
         const char *instr = "Pressione ENTER ou ESPACO para voltar";
         DrawText(instr, sw/2 - MeasureText(instr, entryFont)/2, sh - (int)(40 * scale), entryFont, WHITE);
+
         EndDrawing();
 
         if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) break;
     }
-    // salva a versão em matriz quando sair da tela (arquivo scores_matrix.txt)
+
+    // salva a versão em matriz no arquivo de scores padrão
     salvarScoresComoMatriz(inicio);
 }
 
