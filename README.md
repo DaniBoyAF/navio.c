@@ -78,6 +78,8 @@ Precisa de algo automático?
   - matriz global de scores (dinâmica),
   - debug visual de hitboxes,
   - script de build adaptado para Linux/Windows.
+
+
 Video teste do jogo:
 
 
