@@ -42,6 +42,8 @@ Como executar
 Terminal
 Comando para Windows:
 C:\raylib\w64devkit\bin\mingw32-make.exe RAYLIB_PATH=C:/raylib/raylib PROJECT_NAME=main OBJS=main.c BUILD_MODE=DEBUG
+
+
 Comando para Linux:
 gcc main.c -o main -lraylib -lGL -lm -lpthread -ldl -lrt -lX11
 
