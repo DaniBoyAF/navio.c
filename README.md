@@ -72,10 +72,19 @@ Editar configurações
 - Resolução base: altere `#define WIDTH` e `#define HEIGHT` no topo de `main.c`.
 - Ajustar hitbox do barco: altere o scale ou expanda `bbPlayer.min/max` após `TransformedBBox`.
 
+
+https://github.com/user-attachments/assets/fd4130ed-2e80-402a-8444-babdb1ce6656
+
+
 Precisa de algo automático?
 - Posso adicionar:
   - matriz global de scores (dinâmica),
   - debug visual de hitboxes,
   - script de build adaptado para Linux/Windows.
+Video teste do jogo:
+
+
+https://github.com/user-attachments/assets/a3299bd2-0083-4d9e-8a2a-a28d05952d43
+
 
 ```
