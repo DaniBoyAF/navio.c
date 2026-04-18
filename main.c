@@ -34,7 +34,7 @@ typedef struct {
     int municao[3];
     int tipo_muni;
     Model modelo;
-    float yaw;
+    float yaw;// ângulo de rotação (em graus)
     float fireTimer;     // tempo restante até poder atirar de novo (segundos)
     float fireCooldown;  // tempo de cooldown entre tiros (segundos)
 } Player;
@@ -560,6 +560,12 @@ int jogar(ListaScore **scoreBoard) {
                 }
             }
             // colisão com boss
+            //if (balas[i].active && CheckCollisionBoxSphere(bbBoss, balas[i].pos, 0.5f))
+//→ se a bala está ativa e a esfera (centro = balas[i].pos, raio = 0.5) colide com o bounding box do boss.
+//boss.hp -= balas[i].dano; balas[i].active = false;
+//→ aplica o dano do projétil ao boss e desativa a bala (não será processada/desenhada).
+//if (boss.hp <= 0) { boss.hp = 0; player.score += 10000; break; }
+//→ se a vida do boss chegou a zero ou menos, zera o HP (sem negativos), adiciona pontos ao jogador e faz break.
             if (balas[i].active && CheckCollisionBoxSphere(bbBoss, balas[i].pos, 0.5f)) {
                 boss.hp -= balas[i].dano; balas[i].active = false;
                 if (boss.hp <= 0) { boss.hp = 0; player.score += 10000; break; }
@@ -588,6 +594,9 @@ int jogar(ListaScore **scoreBoard) {
         }
 
         // Atualiza balas inimigas
+        //Atualiza posição de cada bala inimiga usando direção * velocidade * dt.
+        //Desativa a bala se sair muito longe (checa x e z vs 2000).
+        //Verifica colisão com o jogador usando ver_batida(...); se bater reduz HP do jogador e desativa a bala.
         for (int i = 0; i < MAX_BULLETS; i++) {
             if (!enemyBullets[i].active) continue;
             enemyBullets[i].pos.x += enemyBullets[i].dir.x * BULLET_SPEED * dt;
@@ -603,6 +612,12 @@ int jogar(ListaScore **scoreBoard) {
         }
 
         // Espumas baseadas em movimento
+        //moved é a distância percorrida (float).
+        //moved * 100.0f escala esse valor para obter um número proporcional ao movimento.
+        //fminf(4.0f, moved*100.0f) limita esse valor máximo a 4.0f.
+        //fmaxf(1.0f, ...) garante que o mínimo seja 1.0f.
+        //(int) converte para inteiro (trunca), resultado fica em pawnCount.
+        //Ou seja: pawnCount = número de partículas (ou "espumas") a spawnar, proporcional ao movimento, sempre entre 1 e 4.
         static Vector3 prevPlayerPos = {0};
         Vector3 delta = { player.pos.x - prevPlayerPos.x, 0, player.pos.z - prevPlayerPos.z };
         float moved = sqrtf(delta.x*delta.x + delta.z*delta.z);
